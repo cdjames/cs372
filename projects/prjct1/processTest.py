@@ -2,8 +2,6 @@
 # https://docs.python.org/2/library/socket.html
 
 from multiprocessing import Process, Queue, Lock
-# from threading import Thread, Lock
-# from Queue import Queue
 import time
 import sys
 from select import select
@@ -21,11 +19,10 @@ timeout = 1
 class Chatter():
 	"""docstring for Chatter"""
 	def __init__(self):
-		# super(Chatter, self).__init__()
-		
-		
-		
+		# super(Chatter, self).__init__()	
 		self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		self.conn = None
+		self.addr = None
 		self.is_client = False
 		self.is_server = False
 		self.original_sigint = signal.getsignal(signal.SIGINT)
@@ -82,11 +79,53 @@ class Chatter():
 	def serverLoop(self):
 		''' endless loop to accept new clients
 			upon accepting, inner loop to communicate '''
-		conn, addr = self.s.accept()
-		print 'Connected by', addr
-		# while(True):
-		conn.close()
+		self.conn, self.addr = self.s.accept()
+		print 'Connected by', self.addr
+		while 1:
+			data = self.conn.recv(1024)
+			if not data: break
+			self.conn.sendall(data)
+		# self.conn.close()
 
+	def mySendReceive(self, s):
+	    ready_to_read, ready_to_write, in_error = \
+	               select.select(
+	                  [s],
+	                  [s],
+	                  [s],
+	                  timeout)
+	    if (ready_to_read):
+	        data = s.recv(32)
+	    elif ready_to_write:
+	    	try:
+	    		s_data = out_q.get()
+	    	except Exception, e:
+	    		return False
+	    	mysend(s, s_data)
+	        # chunks = []
+	        # bytes_recd = 0
+	        # while bytes_recd < MSGLEN:
+	        #     print "bytes recd=%d" % (bytes_recd) 
+	        #     chunk = s.recv(min(MSGLEN - bytes_recd, 2048))
+	        #     if chunk == '':
+	        #         raise RuntimeError("socket connection broken")
+	        #     chunks.append(chunk)
+	        #     bytes_recd = bytes_recd + len(chunk)
+	        #     return ''.join(chunks)
+
+	def mysend(self, s, msg):
+		totalsent = 0
+		msglen = len(msg)
+		print "msglen=%d" % (msglen)
+		while totalsent < msglen:
+		    sent = s.send(msg[totalsent:])
+		    print "sent=%d" % (sent)
+		    if sent == 0:
+		        print "connection broken"
+		        raise RuntimeError("socket connection broken")
+		    totalsent = totalsent + sent
+		    print "total sent=%d" % (totalsent)
+		return totalsent
 
 	def cleanup():
 		signal.signal(signal.SIGINT, original_sigint) # restore the original handler just in case

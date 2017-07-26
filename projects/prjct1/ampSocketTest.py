@@ -87,9 +87,9 @@ def myreceive():
 if __name__ == '__main__':
     print "connecting"
     connected = connect()
-    # if connected:
-    #     print "sending"
-    #     mysend("hello")
-    #     print "received %s" % (myreceive())
-    #     s.shutdown(0)
-    #     s.close()
+    if connected:
+        print "sending"
+        mysend("hello")
+        print "received %s" % (myreceive())
+        s.shutdown(0)
+        s.close()
