@@ -91,5 +91,5 @@ if __name__ == '__main__':
         print "sending"
         mysend("hello")
         print "received %s" % (myreceive())
-        s.shutdown(0)
+        # s.shutdown(0)
         s.close()

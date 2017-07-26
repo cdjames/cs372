@@ -1,5 +1,6 @@
 # https://stackoverflow.com/questions/8976962/is-there-any-way-to-pass-stdin-as-an-argument-to-another-process-in-python#8981813
 # https://docs.python.org/2/library/socket.html
+# https://stackoverflow.com/questions/18114560/python-catch-ctrl-c-command-prompt-really-want-to-quit-y-n-resume-executi#18115530
 
 from multiprocessing import Process, Queue, Lock
 import time
@@ -15,6 +16,7 @@ out_q = Queue()
 in_q = Queue()
 mutex = Lock()
 timeout = 1
+original_sigint = signal.getsignal(signal.SIGINT)
 
 class Chatter():
 	"""docstring for Chatter"""
@@ -25,7 +27,6 @@ class Chatter():
 		self.addr = None
 		self.is_client = False
 		self.is_server = False
-		self.original_sigint = signal.getsignal(signal.SIGINT)
 
 	def clientLoop(self, q):
 		''' this will look for something in the out_q and send to a conversant '''
@@ -82,26 +83,45 @@ class Chatter():
 		self.conn, self.addr = self.s.accept()
 		print 'Connected by', self.addr
 		while 1:
-			data = self.conn.recv(1024)
-			if not data: break
-			self.conn.sendall(data)
+			if self.mySendReceive(self.conn) == False:
+				print "listening 87"
+				self.conn, self.addr = self.s.accept()
+			# data = self.conn.recv(1024)
+			# if not data: break
+			# self.conn.sendall(data)
 		# self.conn.close()
 
 	def mySendReceive(self, s):
-	    ready_to_read, ready_to_write, in_error = \
-	               select.select(
-	                  [s],
-	                  [s],
-	                  [s],
-	                  timeout)
-	    if (ready_to_read):
-	        data = s.recv(32)
-	    elif ready_to_write:
-	    	try:
-	    		s_data = out_q.get()
-	    	except Exception, e:
-	    		return False
-	    	mysend(s, s_data)
+		print "mySendReceive"
+		ready_to_read, ready_to_write, in_error = \
+		           select(
+		              [s],
+		              [s],
+		              [s],
+		              timeout)
+		if (ready_to_read):
+			try:
+				data = s.recv(1024)
+				print data + " 103"
+				if data == "":
+					return False
+			except Exception, e:
+				return False	
+		elif ready_to_write:
+			
+			try:
+				s_data = out_q.get()
+			except Exception, e:
+				return False
+			self.mysend(s, s_data)
+
+			try:
+				data = s.recv(32) # make sure socket is still open
+				print data + " 110"
+				if data == "":
+					return False
+			except Exception, e:
+				return False
 	        # chunks = []
 	        # bytes_recd = 0
 	        # while bytes_recd < MSGLEN:
@@ -118,19 +138,28 @@ class Chatter():
 		msglen = len(msg)
 		print "msglen=%d" % (msglen)
 		while totalsent < msglen:
-		    sent = s.send(msg[totalsent:])
-		    print "sent=%d" % (sent)
-		    if sent == 0:
-		        print "connection broken"
-		        raise RuntimeError("socket connection broken")
-		    totalsent = totalsent + sent
-		    print "total sent=%d" % (totalsent)
+			try:
+			    sent = s.send(msg[totalsent:])
+			    print "sent=%d" % (sent)
+			except Exception, e:
+			    # if sent == 0:
+				print "connection broken"
+				# raise RuntimeError("socket connection broken")
+				return 0
+			# try:
+			# 	data = s.recv(32)
+			# 	print "client returned %s" % data
+			# except Exception, e:
+			# 	print "client disconnected"
+			# 	return False
+			totalsent = totalsent + sent
+			print "total sent=%d" % (totalsent)
 		return totalsent
 
-	def cleanup():
+	def cleanup(self, signum, frame):
 		signal.signal(signal.SIGINT, original_sigint) # restore the original handler just in case
 
-		self.in_q.put("owaridayotto")
+		in_q.put("owaridayotto")
 		self.s.close()
 		mainCleanup()
 
