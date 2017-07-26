@@ -11,7 +11,7 @@ def getAllIps():
     for i in socket.getaddrinfo(socket.gethostname(), None):
        if ":" not in i[4][0]:
         ips.append(i[4][0])
-    # ips.append('127.0.0.1')
+    ips.append('127.0.0.1')
     return ips 
 
 # global variables
@@ -21,7 +21,7 @@ s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP)
 # host = '10.34.150.19'
 # host = '192.168.1.11'
 host=getAllIps()[0]
-port = 27016
+port = 48834
 MSGLEN = 512
 
 
@@ -87,9 +87,9 @@ def myreceive():
 if __name__ == '__main__':
     print "connecting"
     connected = connect()
-    if connected:
-        print "sending"
-        mysend("hello")
-        print "received %s" % (myreceive())
-        s.shutdown(0)
-        s.close()
+    # if connected:
+    #     print "sending"
+    #     mysend("hello")
+    #     print "received %s" % (myreceive())
+    #     s.shutdown(0)
+    #     s.close()
