@@ -3,6 +3,7 @@
 # https://stackoverflow.com/questions/18114560/python-catch-ctrl-c-command-prompt-really-want-to-quit-y-n-resume-executi#18115530
 
 from multiprocessing import Process, Queue, Lock
+import Queue as DummyQueue
 import time
 import sys
 from select import select
@@ -20,13 +21,14 @@ original_sigint = signal.getsignal(signal.SIGINT)
 
 class Chatter():
 	"""docstring for Chatter"""
-	def __init__(self):
+	def __init__(self, port=port):
 		# super(Chatter, self).__init__()	
 		self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.conn = None
 		self.addr = None
 		self.is_client = False
 		self.is_server = False
+		self.port = int(port)
 
 	def clientLoop(self, q):
 		''' this will look for something in the out_q and send to a conversant '''
@@ -42,7 +44,7 @@ class Chatter():
 			print i
 			self.mutex.release()
 
-	def connect(self, h=host, p=port):
+	def connect(self, h=host):
 	    '''Connect to socket'''
 	    # for item in getAllIps():
 	        # try:    
@@ -52,8 +54,9 @@ class Chatter():
 	        #     print("Unable to connect to socket at IP %s, port %d: %s" % (item, port, e))
 	        #     print("Please ensure socket is started.")
 	    try:
-	    	self.s.connect((h, p))
+	    	self.s.connect((h, self.port))
 	    	self.is_client = True
+	    	self.s.settimeout(1)
 	    	return True
 	    except Exception, e:
 	    	print("Unable to connect to socket at IP %s, port %d: error %s" % (h, port, e))
@@ -63,13 +66,13 @@ class Chatter():
 	    # s.close()       
 	    return False # if you get here there was a failure to connect on any hosts
 
-	def startServer(self, h='', p=port):
+	def startServer(self, h=''):
 		try:
 			self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-			self.s.bind((h, p))
+			self.s.bind((h, self.port))
 			self.s.listen(1)
 			self.is_server = True
-			print "got here"
+			print "server started"
 			return True
 		except socket.error as msg:
 			# print "got here"
@@ -81,47 +84,115 @@ class Chatter():
 		''' endless loop to accept new clients
 			upon accepting, inner loop to communicate '''
 		self.conn, self.addr = self.s.accept()
+		self.conn.settimeout(1)
 		print 'Connected by', self.addr
 		while 1:
-			if self.mySendReceive(self.conn) == False:
-				print "listening 87"
+			try:
+				if self.mySendReceive(self.conn) == False:
+					print "accepting new clients"
+					self.conn, self.addr = self.s.accept()
+			except socket.timeout:
+				pass
+			except DummyQueue.Empty:
+				pass
+			except SystemExit, e:
+				# mysend(self.conn)
+				self.conn.close()
+				print "accepting new clients"
 				self.conn, self.addr = self.s.accept()
+				# self.s.shutdown(0)
+				# self.s = None
+				# if self.startServer():
+				# 	self.conn, self.addr = self.s.accept()
+				# else:
+				# 	"could not become server"
+				# 	self._cleanup()
+
 			# data = self.conn.recv(1024)
 			# if not data: break
 			# self.conn.sendall(data)
 		# self.conn.close()
 
+	def clientLoop(self):
+		# print self.mySendReceive(self.s)
+		self.s.settimeout(1)
+		while 1:
+			try:
+				if self.mySendReceive(self.s) == False:
+					break
+
+			except DummyQueue.Empty:
+				print "queue empty"
+				time.sleep(1)
+				pass
+			except socket.timeout, e:
+				print "socket timeout"
+				time.sleep(1)
+				pass
+			except SystemExit, e:
+				self._cleanup()
+			except Exception, e:
+				print e
+			# pass
+		# while self.mySendReceive(self.s) != False:
+		# 	pass
+
 	def mySendReceive(self, s):
-		print "mySendReceive"
+		# print "mySendReceive"
 		ready_to_read, ready_to_write, in_error = \
 		           select(
 		              [s],
 		              [s],
 		              [s],
 		              timeout)
-		if (ready_to_read):
+		if ready_to_read:
+			# if self.is_server:
+			# 	print "in ready_to_read"
 			try:
 				data = s.recv(1024)
 				print data + " 103"
 				if data == "":
 					return False
 			except Exception, e:
-				return False	
-		elif ready_to_write:
-			
-			try:
-				s_data = out_q.get()
-			except Exception, e:
 				return False
-			self.mysend(s, s_data)
-
+			except socket.timeout, e:
+				raise e
+			return True	
+		elif ready_to_write:	
+			# if self.is_server:
+			# 	print "in ready_to_write"
 			try:
-				data = s.recv(32) # make sure socket is still open
-				print data + " 110"
-				if data == "":
+				s_data = out_q.get(False)
+			except Exception, e:
+				raise e
+			except socket.timeout, e:
+				raise e
+				# print "returning, nothing in out queue"
+				# return False
+			# print s_data + "retrieved from queue"
+			if s_data == '\\quit\n':
+				print "exiting chat"
+				raise SystemExit
+			try:
+				if self.mysend(s, s_data) == 0:
 					return False
 			except Exception, e:
 				return False
+			except socket.timeout, e:
+				raise e
+			try:
+				data = s.recv(1024) # make sure socket is still open
+				print data + " 110"
+				if data == "":
+					return False
+			except socket.timeout, e:
+				raise e
+			except Exception, e:
+				raise e
+
+			return True
+		elif in_error:
+			print "in_error"
 	        # chunks = []
 	        # bytes_recd = 0
 	        # while bytes_recd < MSGLEN:
@@ -136,16 +207,20 @@ class Chatter():
 	def mysend(self, s, msg):
 		totalsent = 0
 		msglen = len(msg)
-		print "msglen=%d" % (msglen)
+		# print "msglen=%d" % (msglen)
 		while totalsent < msglen:
 			try:
 			    sent = s.send(msg[totalsent:])
-			    print "sent=%d" % (sent)
+			    # print "sent=%d" % (sent)
+			    if sent == 0:
+			    	return 0
+			except socket.timeout, e:
+				raise e
 			except Exception, e:
 			    # if sent == 0:
 				print "connection broken"
-				# raise RuntimeError("socket connection broken")
-				return 0
+				raise RuntimeError("socket connection broken")
+				# return 0
 			# try:
 			# 	data = s.recv(32)
 			# 	print "client returned %s" % data
@@ -153,15 +228,21 @@ class Chatter():
 			# 	print "client disconnected"
 			# 	return False
 			totalsent = totalsent + sent
-			print "total sent=%d" % (totalsent)
+			# print "total sent=%d" % (totalsent)
 		return totalsent
+
+	def _cleanup(self):
+		in_q.put("owaridayotto")
+		self.s.close()
+		mainCleanup()
 
 	def cleanup(self, signum, frame):
 		signal.signal(signal.SIGINT, original_sigint) # restore the original handler just in case
 
-		in_q.put("owaridayotto")
-		self.s.close()
-		mainCleanup()
+		# in_q.put("owaridayotto")
+		# self.s.close()
+		# mainCleanup()
+		self._cleanup()
 
 
 def gatherInput(std_in, q):
@@ -193,8 +274,11 @@ def mainCleanup():
 
 if __name__ == '__main__':
 	newstdin = os.fdopen(os.dup(sys.stdin.fileno())) # copy the file handle for standard in
-		
-	ch = Chatter()
+	p = port
+	if len(sys.argv) >= 2:
+		p = sys.argv[1]
+
+	ch = Chatter(port=p)
 	if not ch.connect(): # try to become client
 		if not ch.startServer(): # try to become server
 			print("There was a problem becoming the server. Exiting")
@@ -210,10 +294,9 @@ if __name__ == '__main__':
 	# do sending and receiving 
 	if ch.is_client:
 		# do client loop
-		pass
+		ch.clientLoop()
 	elif ch.is_server:
 		ch.serverLoop()
-		pass
 
 
 	mainCleanup()
