@@ -86,7 +86,7 @@ void gatherInput(deque<string> *inq, deque<string> *outq) {
 	    if(result != -1) { // no error
 	    	if (FD_ISSET(STDIN_FILENO, &fds)) { // check if stdin is ready
 		    	cin >> i;
-			    // cout << "you wrote " << i << endl;
+			    cout << "you wrote " << i << endl;
 			    outqlock.lock();
 			    outq->push_back(i);
 			    outqlock.unlock();

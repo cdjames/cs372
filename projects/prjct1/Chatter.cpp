@@ -88,4 +88,59 @@ void Chatter::clientLoop() {
 	setNonBlocking(this->clientSocket);
 	setTimeout(this->clientSocket);
 	sendHandle(this->clientSocket);
+
+	int amt;
+	while(1) {
+		string msg = "";
+		outlock->lock();
+		if(!outq->empty()){
+			// cout << "outq size before: " << outq->size() << endl;
+			while(!outq->empty()) {
+				msg += outq->front();
+				outq->pop_front();
+				// cout << "outq size: " << outq->size() << endl;
+			}
+			msg += "\n";
+			amt = msg.length();
+			int success = sendAll(clientSocket, msg.c_str(), msg, &amt);
+			// cout << success << endl;
+			if(success == -1)
+				break;
+		}
+		outlock->unlock();
+	}
+}
+
+int Chatter::sendAll(int s, const void * msg, string tosend, int *amountToSend) {
+	// figure out how much needs to be sent
+
+	int total = 0; // amount sent
+	int amt;
+	int bytesToSend = *amountToSend;
+	int returnThis = 0;
+	/* search for quit */
+	if(tosend.find("\\quit") != string::npos)
+		return -1;
+	// cout << "trying to send" << endl;
+	while(total < *amountToSend){
+		// send
+		amt = send(s, msg+total, bytesToSend, 0);
+		/* get out of loop on send error */
+		if(amt == -1 || amt == 0){
+			if(amt == -1)
+				returnThis = amt;
+			else
+				returnThis = 1;
+			break;
+		}
+
+		total += amt;
+		bytesToSend -= amt;
+	}
+
+	// figure out how much was sent and return
+	*amountToSend = total;
+	
+	/* return an error or success depending on result */
+	return returnThis;
 }

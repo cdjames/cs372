@@ -20,6 +20,7 @@ private:
 	int sendHandle(int s);
 	bool setTimeout(int s);
 	bool setNonBlocking(int s);
+	int sendAll(int s, const void * msg, string tosend, int *amountToSend);
 	int clientSocket,
 		listenSocket,
 		connSocket,
