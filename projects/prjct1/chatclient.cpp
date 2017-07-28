@@ -7,6 +7,8 @@ https://stackoverflow.com/questions/6171132/non-blocking-console-input-c
 Non-block/timeout:
 https://stackoverflow.com/questions/1543466/how-do-i-change-a-tcp-socket-to-be-non-blocking#1549344
 https://stackoverflow.com/questions/4181784/how-to-set-socket-timeout-in-c-when-making-multiple-connections
+
+http://www.cplusplus.com/reference/string/string/getline/
 */
 
 #include "chatclient.hpp"
@@ -66,7 +68,7 @@ void gatherInput(deque<string> *inq, deque<string> *outq) {
     tv.tv_sec = TO; 
     tv.tv_usec = TO_MS;
     int result; // store result of select
-
+		    	// cin >> std::noskipws;
 	do {
 		/* need to set these inside the loop; select will modify them*/
 		FD_ZERO (&fds);   
