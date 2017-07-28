@@ -51,6 +51,41 @@ bool Chatter::connectToServer(){
 	else
 		cout << "connected!" << endl;
 	
+	is_client = true;
 	// yay, you are connected!
 	return true;
+}
+
+int Chatter::sendHandle(int s) {
+	int charsWritten = 0;
+	if(!handle_sent) {
+		string msg = code + handle;
+		charsWritten = send(s, msg.c_str(), msg.length(), 0);
+	}
+	return charsWritten;
+}
+
+bool Chatter::setNonBlocking(int s) {
+	int flags = fcntl(s, F_GETFL, 0);
+	if (flags < 0) return false;
+	flags = flags&~O_NONBLOCK;
+	return (fcntl(s, F_SETFL, flags) == 0) ? true : false;
+}
+
+bool Chatter::setTimeout(int s) {
+	struct timeval tv;
+    tv.tv_sec = TO; 
+    tv.tv_usec = TO_MS;
+	if (setsockopt (s, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(tv)) < 0)
+		return false;
+
+    if (setsockopt (s, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv,  sizeof(tv)) < 0)
+		return false;
+	return true;
+}
+
+void Chatter::clientLoop() {
+	setNonBlocking(this->clientSocket);
+	setTimeout(this->clientSocket);
+	sendHandle(this->clientSocket);
 }

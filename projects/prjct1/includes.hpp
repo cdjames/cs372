@@ -12,6 +12,7 @@
 #include <netdb.h> 
 #include <errno.h>
 #include <cstring>
+#include <fcntl.h> // enable non-blocking socket
 // C++ stuff
 #include <string>
 #include <deque>
@@ -27,5 +28,12 @@ using std::cin;
 using std::cerr;
 using std::endl;
 using std::thread;
+
+/* global variables */
+#define PROC_EXIT "owaridayotto"
+#define HOST "127.0.0.1"
+#define PORT 48834
+#define TO 1
+#define TO_MS 0
 
 #endif

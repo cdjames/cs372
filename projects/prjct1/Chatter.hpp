@@ -11,10 +11,15 @@ public:
 
 	bool connectToServer();
 
+	void clientLoop();
+
 	bool is_client,
 		 is_server;
 
 private:
+	int sendHandle(int s);
+	bool setTimeout(int s);
+	bool setNonBlocking(int s);
 	int clientSocket,
 		listenSocket,
 		connSocket,

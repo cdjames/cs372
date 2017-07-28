@@ -4,16 +4,12 @@ select:
 https://stackoverflow.com/questions/9732710/select-stdcin-and-stdgetline-not-playing-well-together#9732927
 https://stackoverflow.com/questions/6171132/non-blocking-console-input-c
 
+Non-block/timeout:
+https://stackoverflow.com/questions/1543466/how-do-i-change-a-tcp-socket-to-be-non-blocking#1549344
+https://stackoverflow.com/questions/4181784/how-to-set-socket-timeout-in-c-when-making-multiple-connections
 */
 
 #include "chatclient.hpp"
-
-/* global variables */
-#define PROC_EXIT "owaridayotto"
-#define HOST "127.0.0.1"
-#define PORT 48834
-#define TO 1
-#define TO_MS 0
 
 deque<string> out_q;
 deque<string> in_q;
@@ -40,6 +36,10 @@ int main(int argc, char const *argv[])
 
 	thread giThread (gatherInput, &in_q, &out_q);
 	// gatherInput(in_q);
+
+	if(ch.is_client) {
+		ch.clientLoop();
+	}
 	cout << "gatherInput should be working " << endl;
 	std::this_thread::sleep_for(std::chrono::milliseconds(5000));
 	outqlock.lock();
