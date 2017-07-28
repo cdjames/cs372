@@ -17,23 +17,31 @@ https://stackoverflow.com/questions/6171132/non-blocking-console-input-c
 
 deque<string> out_q;
 deque<string> in_q;
-mutex qlock;
+mutex inqlock;
+mutex outqlock;
 
 int main(int argc, char const *argv[])
 {
-	thread giThread (gatherInput, &in_q);
+	thread giThread (gatherInput, &in_q, &out_q);
 	// gatherInput(in_q);
 	cout << "gatherInput should be working " << endl;
 	std::this_thread::sleep_for(std::chrono::milliseconds(5000));
-	qlock.lock();
+	outqlock.lock();
+	if(!out_q.empty()) {
+		cout << "found this in the queue: " << out_q.front() << endl;
+		out_q.pop_front();
+	}
+	outqlock.unlock();
+
+	inqlock.lock();
 	in_q.push_back(PROC_EXIT);
-	qlock.unlock();
+	inqlock.unlock();
 		
-	giThread.join();
+	giThread.join(); // close the input thread
 	return 0;
 }
 
-void gatherInput(deque<string> *q) {
+void gatherInput(deque<string> *inq, deque<string> *outq) {
 	string quit_string = "",
 			i = "";
 	fd_set fds; // set inside loop
@@ -48,21 +56,24 @@ void gatherInput(deque<string> *q) {
 		FD_ZERO (&fds);   
 	    FD_SET (STDIN_FILENO, &fds);
 	    // cout << "checking q" << endl;
-	    qlock.lock();
-		if (!q->empty()) {
-			quit_string = q->front();
-			q->pop_front();
+	    inqlock.lock();
+		if (!inq->empty()) {
+			quit_string = inq->front();
+			inq->pop_front();
 		} else {
 			quit_string = "";
 		}
-		qlock.unlock();
+		inqlock.unlock();
 
 	    result = select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv);
 	    // cout << "select returned " << result << endl;
 	    if(result != -1) { // no error
 	    	if (FD_ISSET(STDIN_FILENO, &fds)) { // check if stdin is ready
 		    	cin >> i;
-			    cout << "you wrote " << i << endl;
+			    // cout << "you wrote " << i << endl;
+			    outqlock.lock();
+			    outq->push_back(i);
+			    outqlock.unlock();
 			}
 		} else {
 			cout << "error " << errno << endl;

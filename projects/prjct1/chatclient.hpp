@@ -27,6 +27,6 @@ using std::cin;
 using std::endl;
 using std::thread;
 
-void gatherInput(deque<string> *q);
+void gatherInput(deque<string> *q, deque<string> *outq);
 
 #endif
