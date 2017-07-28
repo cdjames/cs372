@@ -235,7 +235,7 @@ if __name__ == '__main__':
 			print("There was a problem becoming the server. Exiting")
 			sys.exit(1)
 
-	# if you get here, you can start to gather input
+	# if you get here, you can start to gather input in a new process
 	p = Process(target=gatherInput, args=(newstdin,in_q)) # read input in new process with copy of standard in
 	p.start()
 
@@ -244,7 +244,6 @@ if __name__ == '__main__':
 
 	# do sending and receiving 
 	if ch.is_client:
-		# do client loop
 		ch.clientLoop()
 	elif ch.is_server:
 		ch.serverLoop()
