@@ -11,14 +11,16 @@ import os
 import socket
 import signal
 
+# global variables
 host = "127.0.0.1"
 port = 48834
-out_q = Queue()
-wait_q = DummyQueue.LifoQueue()
-in_q = Queue()
+out_q = Queue() # use the multiprocessing Queue (Fifo); for sending messages
+wait_q = DummyQueue.LifoQueue() # needed for Lifo
+in_q = Queue() # for closing gatherInput() process
 mutex = Lock()
 TO = 1
 original_sigint = signal.getsignal(signal.SIGINT)
+PROC_EXIT = "owaridayotto"
 
 class Chatter():
 	"""docstring for Chatter"""
@@ -30,7 +32,10 @@ class Chatter():
 		self.is_client = False
 		self.is_server = False
 		self.port = int(port)
+		self.aiteiHandle = ""
+		self.firstRun = True
 
+	### Client functions ###
 	def connect(self, h=host):
 	    '''Connect to socket'''
 	    # for item in getAllIps():
@@ -52,6 +57,41 @@ class Chatter():
 
 	    return False # if you get here there was a failure to connect on any hosts
 
+	def clientLoop(self):
+		self.s.settimeout(TO)
+		# main loop. Try writing first; if queue is empty then read
+		while 1:
+			try:
+				if not wait_q.empty():
+					msg = ""
+					while not wait_q.empty():
+						msg += wait_q.get()
+					self.mysend(self.s, msg)
+				if not out_q.empty():
+					msg = ""
+					while not out_q.empty():
+						msg += out_q.get()
+					self.mysend(self.s, msg)
+				else:
+					try:
+						if self.checkAndReceive(self.s) == False:
+							self._cleanup()
+					except socket.timeout:
+						pass
+					except DummyQueue.Empty:
+						pass
+			except DummyQueue.Empty:
+				# print "queue empty"
+				time.sleep(TO)
+			except socket.timeout, e:
+				# print "socket timeout"
+				time.sleep(TO)
+			except SystemExit, e:
+				self._cleanup()
+			except Exception, e:
+				print e
+
+	### Server Functions ###
 	def startServer(self, h=''):
 		try:
 			self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -95,12 +135,18 @@ class Chatter():
 			except SystemExit, e:
 				self.acceptNewClients(True) # True to close the client connection
 
-	def acceptNewClients(self, close=False):
-		print "accepting new clients"
-		if close:
-			self.conn.close()
-		self.conn, self.addr = self.s.accept()
 
+	def acceptNewClients(self, close=False):
+		try:
+			if close:
+				self.conn.close()
+			print "accepting new clients"
+			self.conn, self.addr = self.s.accept()
+		except socket.error, e:
+			# print e
+			sys.exit(1)
+
+	### Common Functions ###
 	def mysend(self, s, msg):
 		# print "in mysend"
 		totalsent = 0
@@ -108,6 +154,7 @@ class Chatter():
 		if '\\quit\n' in msg:
 			print "exiting chat"
 			raise SystemExit
+		# send until all is sent
 		while totalsent < msglen:
 			try:
 			    sent = s.send(msg[totalsent:])
@@ -124,67 +171,33 @@ class Chatter():
 			totalsent = totalsent + sent
 		return totalsent
 
-	def clientLoop(self):
-		self.s.settimeout(TO)
-		# main loop. Try writing first; if queue is empty then read
-		while 1:
-			try:
-				if not wait_q.empty():
-					msg = ""
-					while not wait_q.empty():
-						msg += wait_q.get()
-					self.mysend(self.s, msg)
-				if not out_q.empty():
-					msg = ""
-					while not out_q.empty():
-						msg += out_q.get()
-					self.mysend(self.s, msg)
-				else:
-					try:
-						if self.checkAndReceive(self.s) == False:
-							self._cleanup()
-					except socket.timeout:
-						pass
-					except DummyQueue.Empty:
-						pass
-			except DummyQueue.Empty:
-				# print "queue empty"
-				time.sleep(TO)
-			except socket.timeout, e:
-				# print "socket timeout"
-				time.sleep(TO)
-			except SystemExit, e:
-				self._cleanup()
-			except Exception, e:
-				print e
-
 	def checkAndReceive(self, s):
-		ready_to_read, _, in_error = \
-		           select(
-		              [s],
-		              [],
-		              [s],
-		              TO)
+		ready_to_read, _, in_error = select([s], [], [s], TO)
 		if ready_to_read:
 			# print "in ready_to_read"
 			try:
 				data = s.recv(1024)	
-				if data == "":
+				msg = data[:-1] # [:-1] means strip trailing \n
+				if msg == "":
 					return False
-				print data[:-1] # [:-1] means don't print trailing \n
-			except Exception, e:
+				if self.firstRun:
+					self.aiteiHandle = msg
+					self.firstRun = False
+				else:
+					print self.aiteiHandle + "> " + msg 			
+			except socket.error, e:
 				return False
 			except socket.timeout, e:
 				raise e
 			return True	
 
-		elif in_error:
+		elif in_error: # honestly not sure if I can get here
 			print "in_error"
 
 		return True
 
 	def _cleanup(self):
-		in_q.put("owaridayotto")
+		in_q.put(PROC_EXIT) # exit gatherInput process
 		self.s.close()
 		mainCleanup()
 
@@ -196,20 +209,22 @@ class Chatter():
 def gatherInput(std_in, q):
 	''' this will read the input for both client and server, put any received input in 
 		a "buffer (out_q). It will only close when it receives the password'''
+	# check for close command (no do while in Python)
 	try:
 		i = q.get(False) # passing False causes an exception to be thrown upon an empty queue
 	except Exception, e:
 		i = ""
 
-	while i != "owaridayotto":
-		mutex.acquire() # not sure if I need to use mutex here, but I'm going to to be safe
+	while i != PROC_EXIT:
+		mutex.acquire() # not sure if I need to use mutex here for stdin, but I'm going to to be safe
+		# select on std_in with timeout of TO seconds
 		rlist, _, _ = select([std_in], [], [], TO)
-		if rlist:
+		if rlist: # ready to read
 			i = std_in.readline()
-			# print i
-			out_q.put(i)
-		# print std_in.readline()
+			if i != "":
+				out_q.put(i)
 		mutex.release()
+		# check for close command again
 		try:
 			i = q.get(False)
 		except Exception, e:
@@ -217,7 +232,7 @@ def gatherInput(std_in, q):
 
 def mainCleanup():
 	''' called from the Chatter cleanup() command'''
-	in_q.put("owaridayotto") # close down gatherInput Process
+	in_q.put(PROC_EXIT) # close down gatherInput Process
 	p.join() # join the gatherInput thread
 	sys.exit(1)
 
@@ -225,6 +240,7 @@ if __name__ == '__main__':
 	# copy the file handle for standard in; used with gatherInput()
 	newstdin = os.fdopen(os.dup(sys.stdin.fileno())) 
 
+	h = host
 	p = port
 	if len(sys.argv) >= 2:
 		p = sys.argv[1]
