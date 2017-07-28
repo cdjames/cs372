@@ -24,8 +24,7 @@ PROC_EXIT = "owaridayotto"
 
 class Chatter():
 	"""docstring for Chatter"""
-	def __init__(self, port=port):
-		# super(Chatter, self).__init__()	
+	def __init__(self, port=port, handle="Anonymous"):
 		self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.conn = None
 		self.addr = None
@@ -33,7 +32,10 @@ class Chatter():
 		self.is_server = False
 		self.port = int(port)
 		self.aiteiHandle = ""
-		self.firstRun = True
+		self.handle = handle
+		self.gotAiteiHandle = False
+		self.handleSent = False
+		self.code = "namae:"
 
 	### Client functions ###
 	def connect(self, h=host):
@@ -59,6 +61,7 @@ class Chatter():
 
 	def clientLoop(self):
 		self.s.settimeout(TO)
+		self.sendHandle(self.s)
 		# main loop. Try writing first; if queue is empty then read
 		while 1:
 			try:
@@ -109,9 +112,9 @@ class Chatter():
 		''' endless loop to accept new clients
 			upon accepting, inner loop to communicate '''
 		# get new clients! this blocks
-		self.acceptNewClients()
+		self.acceptNewClients() # also sends
 		self.conn.settimeout(TO)
-		print 'Connected by', self.addr
+		print 'Connected with', self.addr
 		while 1:
 			try:
 				if not wait_q.empty():
@@ -137,16 +140,28 @@ class Chatter():
 
 
 	def acceptNewClients(self, close=False):
+		# reset fresh application state
+		self.gotAiteiHandle = False
+		self.aiteiHandle = ""
+
 		try:
 			if close:
 				self.conn.close()
 			print "accepting new clients"
 			self.conn, self.addr = self.s.accept()
+			# after connecting, send your handle
+			self.sendHandle(self.conn)
 		except socket.error, e:
-			# print e
+			print "socket closed, exiting"
 			sys.exit(1)
 
 	### Common Functions ###
+	def sendHandle(self, s):
+		if not self.handleSent:
+			msg = self.code+self.handle
+			# print msg
+			s.send(msg)
+
 	def mysend(self, s, msg):
 		# print "in mysend"
 		totalsent = 0
@@ -177,14 +192,24 @@ class Chatter():
 			# print "in ready_to_read"
 			try:
 				data = s.recv(1024)	
-				msg = data[:-1] # [:-1] means strip trailing \n
-				if msg == "":
+				if data[:-1] == "":
 					return False
-				if self.firstRun:
-					self.aiteiHandle = msg
-					self.firstRun = False
+				# don't strip the trailing "\n" here because it was gathered with raw_input,
+				# which doesn't add it like sys.stdin.readline()
+				if not self.gotAiteiHandle and self.aiteiHandle == "":
+					if self.code in data:
+						# print data
+						code, aitei = data.split(":")
+					self.aiteiHandle = aitei
+					self.gotAiteiHandle = True
+					# let them know who you're speaking with!
+					print "...Speaking with " + self.aiteiHandle
 				else:
-					print self.aiteiHandle + "> " + msg 			
+					# just in case messages are coming in really fast, make sure they don't
+					# have any \n mixed in
+					splitdata = data[:-1].split('\n') # [:-1] means strip trailing \n
+					for part in splitdata:
+						print self.aiteiHandle + "> " + part  			
 			except socket.error, e:
 				return False
 			except socket.timeout, e:
@@ -230,6 +255,9 @@ def gatherInput(std_in, q):
 		except Exception, e:
 			i = ""
 
+def getUserName():
+	return raw_input("Please enter your chat handle: ")
+
 def mainCleanup():
 	''' called from the Chatter cleanup() command'''
 	in_q.put(PROC_EXIT) # close down gatherInput Process
@@ -245,7 +273,7 @@ if __name__ == '__main__':
 	if len(sys.argv) >= 2:
 		p = sys.argv[1]
 
-	ch = Chatter(port=p)
+	ch = Chatter(port=p, handle=getUserName())
 	if not ch.connect(): # try to become client
 		if not ch.startServer(): # try to become server
 			print("There was a problem becoming the server. Exiting")
