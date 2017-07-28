@@ -21,45 +21,19 @@ mutex qlock;
 
 int main(int argc, char const *argv[])
 {
-	/* code */
-	gatherInput(in_q);
-	// string quit_string = "",
-	// 		i = "";
-	// fd_set fds;
-	// FD_ZERO (&fds);   
- //    FD_SET (STDIN_FILENO, &fds);
- //    struct timeval tv;
- //    tv.tv_sec = TO; 
- //    tv.tv_usec = TO_MS;
- //    int result; // store 
-
-	// do {
-	// 	FD_ZERO (&fds);   
-	//     FD_SET (STDIN_FILENO, &fds);
-	//     cout << "checking q" << endl;
-	// 	if (!in_q.empty()) {
-	// 		quit_string = in_q.front();
-	// 		in_q.pop_front();
-	// 	} else {
-	// 		quit_string = "";
-	// 	}
-
-	//     result = select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv);
-	//     // cout << "select returned " << result << endl;
-	//     if(result != -1) {
-	//     	if (FD_ISSET(STDIN_FILENO, &fds)) {
-	// 	    	cin >> i;
-	// 		    cout << "you wrote " << i << endl;
-	// 		}
-	// 	}
-
-
-	// } while (quit_string != PROC_EXIT && i != PROC_EXIT); // remove i from this for final implementation
-
+	thread giThread (gatherInput, &in_q);
+	// gatherInput(in_q);
+	cout << "gatherInput should be working " << endl;
+	std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+	qlock.lock();
+	in_q.push_back(PROC_EXIT);
+	qlock.unlock();
+		
+	giThread.join();
 	return 0;
 }
 
-void gatherInput(deque<string> &q) {
+void gatherInput(deque<string> *q) {
 	string quit_string = "",
 			i = "";
 	fd_set fds; // set inside loop
@@ -74,12 +48,14 @@ void gatherInput(deque<string> &q) {
 		FD_ZERO (&fds);   
 	    FD_SET (STDIN_FILENO, &fds);
 	    // cout << "checking q" << endl;
-		if (!q.empty()) {
-			quit_string = q.front();
-			q.pop_front();
+	    qlock.lock();
+		if (!q->empty()) {
+			quit_string = q->front();
+			q->pop_front();
 		} else {
 			quit_string = "";
 		}
+		qlock.unlock();
 
 	    result = select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv);
 	    // cout << "select returned " << result << endl;

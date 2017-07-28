@@ -17,6 +17,7 @@
 #include <deque>
 #include <iostream>
 #include <mutex>
+#include <thread>
 
 using std::deque;
 using std::string;
@@ -24,7 +25,8 @@ using std::mutex;
 using std::cout;
 using std::cin;
 using std::endl;
+using std::thread;
 
-void gatherInput(deque<string> &q);
+void gatherInput(deque<string> *q);
 
 #endif
