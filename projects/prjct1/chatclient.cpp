@@ -22,6 +22,22 @@ mutex outqlock;
 
 int main(int argc, char const *argv[])
 {
+	string handle;
+	cout << "Please enter your chat handle: ";
+	cin >> handle;
+	cout << endl;
+
+	string h = HOST;
+	int p = PORT;
+	if (argc >= 2){
+		p = std::stoi(argv[1]);
+	}
+
+	Chatter ch(p, h, handle, &in_q, &out_q, &inqlock, &outqlock);
+	if(!ch.connectToServer()) {
+		return 1;
+	}
+
 	thread giThread (gatherInput, &in_q, &out_q);
 	// gatherInput(in_q);
 	cout << "gatherInput should be working " << endl;
