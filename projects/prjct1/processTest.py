@@ -12,6 +12,7 @@ import socket
 import signal
 
 # global variables
+usage = "python chatserve.py [-help] [port] [ip]"
 host = "127.0.0.1"
 port = 48834
 out_q = Queue() # use the multiprocessing Queue (Fifo); for sending messages
@@ -48,9 +49,9 @@ class Chatter():
 	        #     print("Unable to connect to socket at IP %s, port %d: %s" % (item, port, e))
 	        #     print("Please ensure socket is started.")
 	    try:
+	    	self.s.settimeout(TO)
 	    	self.s.connect((h, self.port))
 	    	self.is_client = True
-	    	self.s.settimeout(TO)
 	    	return True
 	    except Exception, e:
 	    	print("Unable to connect to socket at IP %s, port %d: error %s" % (h, self.port, e))
@@ -63,7 +64,8 @@ class Chatter():
 		self.s.settimeout(TO)
 		self.sendHandle(self.s)
 		# main loop. Try writing first; if queue is empty then read
-		while 1:
+		quit = False
+		while not quit:
 			try:
 				if not wait_q.empty():
 					msg = ""
@@ -78,8 +80,8 @@ class Chatter():
 				else:
 					try:
 						if self.checkAndReceive(self.s) == False:
-							print "...quitting"
-							self._cleanup()
+							print "...Connection closed by server"
+							quit = True
 					except socket.timeout:
 						pass
 					except DummyQueue.Empty:
@@ -91,9 +93,10 @@ class Chatter():
 				# print "socket timeout"
 				time.sleep(TO)
 			except SystemExit, e:
-				self._cleanup()
+				quit = True
 			except Exception, e:
 				print e
+		self._cleanup()
 
 	### Server Functions ###
 	def startServer(self, h=''):
@@ -102,7 +105,7 @@ class Chatter():
 			self.s.bind((h, self.port))
 			self.s.listen(1)
 			self.is_server = True
-			print "server started"
+			print "...chat server started"
 			return True
 		except socket.error as msg:
 			self.s.close()
@@ -168,7 +171,7 @@ class Chatter():
 		totalsent = 0
 		msglen = len(msg)
 		if '\\quit\n' in msg:
-			print "...exiting chat"
+			# print "...exiting chat"
 			raise SystemExit
 		# send until all is sent
 		while totalsent < msglen:
@@ -274,10 +277,16 @@ if __name__ == '__main__':
 	h = host
 	p = port
 	if len(sys.argv) >= 2:
-		p = sys.argv[1]
+		if "-h" in sys.argv[1]:
+			print usage
+			sys.exit(0)
+		else:
+			p = sys.argv[1]
+		if len(sys.argv) >= 3:
+			h = sys.argv[2]
 
 	ch = Chatter(port=p, handle=getUserName())
-	if not ch.connect(): # try to become client
+	if not ch.connect(h): # try to become client
 		if not ch.startServer(): # try to become server
 			print("There was a problem becoming the server. Exiting")
 			sys.exit(1)
@@ -296,4 +305,4 @@ if __name__ == '__main__':
 		ch.serverLoop()
 
 	# just in case, clean up if you get here
-	# mainCleanup()
+	mainCleanup()

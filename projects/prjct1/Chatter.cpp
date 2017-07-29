@@ -45,6 +45,8 @@ bool Chatter::connectToServer(){
 		return false; 
 	}
 
+	setTimeout(this->clientSocket);
+	
 	// Connect to server
 	int connected = connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
 	if (connected < 0) {// Connect socket to address
@@ -89,7 +91,7 @@ bool Chatter::setTimeout(int s) {
 
 void Chatter::clientLoop() {
 	setNonBlocking(this->clientSocket);
-	setTimeout(this->clientSocket);
+	// setTimeout(this->clientSocket);
 	sendHandle(this->clientSocket);
 
 	int amt;
