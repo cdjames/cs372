@@ -39,6 +39,7 @@ public:
 		 is_server; // not used
 
 private:
+	bool _connect(int s, int to, struct sockaddr_in serverAddress);
 	/*********************************************************************
 	** Description: sendHandle()
 	** Params: socket FD

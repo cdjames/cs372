@@ -3,6 +3,7 @@
 select: 
 https://stackoverflow.com/questions/9732710/select-stdcin-and-stdgetline-not-playing-well-together#9732927
 https://stackoverflow.com/questions/6171132/non-blocking-console-input-c
+https://stackoverflow.com/questions/2597608/c-socket-connection-timeout#2597774
 
 Non-block/timeout:
 https://stackoverflow.com/questions/1543466/how-do-i-change-a-tcp-socket-to-be-non-blocking#1549344
@@ -30,15 +31,25 @@ int main(int argc, char const *argv[])
 		   h;
 	int p;
 
+	h = HOST;
+	p = PORT;
+	/* deal with command line parameters */
+	if (argc >= 2){
+		if(argv[1][0] == '-' && argv[1][1] == 'h') {
+			cout << USAGE << endl;
+			exit(0);
+		} else {
+			p = std::stoi(argv[1]); // convert port number to int
+		}
+		if (argc >= 3) {
+			h = argv[2];
+		}
+	}
+
 	cout << "Please enter your chat handle: ";
 	getline(cin, handle);
 	cout << endl;
 
-	h = HOST;
-	p = PORT;
-	if (argc >= 2){
-		p = std::stoi(argv[1]); // convert port number to int
-	}
 
 	/* create chat object and try to connect */
 	Chatter ch(p, h, handle, &in_q, &out_q, &inqlock, &outqlock);

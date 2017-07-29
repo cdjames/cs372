@@ -33,6 +33,7 @@ using std::thread;
 using std::vector;
 
 /* global variables */
+#define USAGE "./chatclient [-help] [port] [ip]"
 #define PROC_EXIT "owaridayotto"
 #define HOST "127.0.0.1"
 #define PORT 48834
