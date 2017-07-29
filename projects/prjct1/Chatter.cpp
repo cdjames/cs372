@@ -90,7 +90,8 @@ void Chatter::clientLoop() {
 	sendHandle(this->clientSocket);
 
 	int amt;
-	while(1) {
+	bool quit = false;
+	while(!quit) {
 		string msg = "";
 		outlock->lock();
 		if(!outq->empty()){
@@ -102,15 +103,67 @@ void Chatter::clientLoop() {
 			amt = msg.length();
 			int success = sendAll(clientSocket, msg.c_str(), msg, &amt);
 			if(success == -1) {
-				inlock->lock();
-				inq->push_front(PROC_EXIT);
-				inlock->unlock();
-				outlock->unlock();
-				break;
+				quit = true;
 			}
+		} else {
+			// outlock->unlock();
+			// try receiving
+			if(!checkAndReceive(clientSocket)) {
+				// socket is broken, cleanup and exit
+				quit = true;
+			}
+			
 		}
 		outlock->unlock();
 	}
+	_cleanup();
+}
+
+void Chatter::_cleanup() {
+	inlock->lock();
+	inq->push_front(PROC_EXIT);
+	inlock->unlock();
+}
+
+bool Chatter::checkAndReceive(int s) {
+	char chatmsg[MAX_BUF];
+	int recvFail;
+	fd_set fds; 
+	FD_ZERO (&fds);   
+    FD_SET (s, &fds);
+	/* create timeouts */
+    struct timeval tv;
+    tv.tv_sec = TO; 
+    tv.tv_usec = TO_MS;
+    int result = select(s + 1, &fds, NULL, NULL, &tv);
+	    // cout << "select returned " << result << endl;
+    if(result != -1) { // no error
+    	if (FD_ISSET(s, &fds)) { 
+    		// try to read data
+    		/* receive encrypted text; it will have newline already appended */
+			clearString(chatmsg, MAX_BUF+1);
+			recvFail = recvMsg(chatmsg, MAX_BUF+1, s);
+			// if(recvFail < 0 || recvFail > 0){
+			if(recvFail > 0){
+				// if(recvFail < 0)
+				// 	errorCloseSocket("CLIENT: ERROR reading encrypted text", s);
+				// else 
+				// if(recvFail > 0)
+					errorCloseSocket("Connection closed by server", s);
+				return false;
+			} else {
+				// do your printing
+				string cppstring(chatmsg);
+				cout << "got a msg: " << cppstring << endl;
+				// cout << "got a msg: " << chatmsg << endl;
+				// if(!got_aitei_handle && aiteiHandle == "") {
+				// 	if(cppstring.find())
+				// }
+				
+			}
+    	}
+    }
+    return true;
 }
 
 int Chatter::sendAll(int s, const void * msg, string tosend, int *amountToSend) {
@@ -145,4 +198,62 @@ int Chatter::sendAll(int s, const void * msg, string tosend, int *amountToSend) 
 	
 	/* return an error or success depending on result */
 	return returnThis;
+}
+
+int Chatter::recvMsg(char * buf, int buf_len, int cnctFD){
+	/* get size of message */
+	int recvFail,
+		amtToRecv = buf_len-1;
+
+	memset(buf, '\0', buf_len);
+
+	recvFail = recvAll(cnctFD, buf, &amtToRecv); // Read the client's message from the socket
+
+	if (recvFail < 0) {
+		return -1;
+	}
+	else if (recvFail > 0){
+		return 1;
+	}
+	
+	return 0;
+}
+
+int Chatter::recvAll(int socketFD, void * buf, int * amountToRecv) {
+	int total = 0, // amount received
+		amt,
+		bytesToRecv = *amountToRecv,
+		returnThis = 0;
+	
+	// cout << "rec. bytes: " << bytesToRecv << endl;
+	while(total < *amountToRecv){
+		amt = recv(socketFD, buf+total, bytesToRecv, 0);
+		/* get out of loop on send error */
+		if(amt == -1 || amt == 0){
+			if(amt == -1)
+				returnThis = amt;
+			else
+				returnThis = 1;
+			break;
+		}
+
+		total += amt;
+		bytesToRecv -= amt;
+	}
+
+	// figure out how much was received and return
+	*amountToRecv = total;
+	
+	/* return an error or success depending on result */
+	return returnThis;
+}
+
+void Chatter::clearString(char * theString, int size) {
+	memset(theString, '\0', size);
+}
+
+void Chatter::errorCloseSocket(const char *msg, int socketFD) { 
+	cerr << msg << endl;
+	close(socketFD);
+	// exit(1); 
 }

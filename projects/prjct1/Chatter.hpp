@@ -21,6 +21,13 @@ private:
 	bool setTimeout(int s);
 	bool setNonBlocking(int s);
 	int sendAll(int s, const void * msg, string tosend, int *amountToSend);
+	bool checkAndReceive(int s);
+	int recvMsg(char * buf, int buf_len, int cnctFD);
+	int recvAll(int socketFD, void * buf, int * amountToRecv);
+	void clearString(char * theString, int size);
+	void errorCloseSocket(const char *msg, int socketFD);
+	void _cleanup();
+	
 	int clientSocket,
 		listenSocket,
 		connSocket,

@@ -35,5 +35,6 @@ using std::thread;
 #define PORT 48834
 #define TO 1
 #define TO_MS 0
+#define MAX_BUF 70000
 
 #endif

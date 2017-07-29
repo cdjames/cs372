@@ -13,6 +13,8 @@ http://www.cplusplus.com/reference/string/string/getline/
 
 #include "chatclient.hpp"
 
+/* global variables, used by main thread (via Chatter object)
+   and input thread for communication */
 deque<string> out_q;
 deque<string> in_q;
 mutex inqlock;
@@ -20,37 +22,35 @@ mutex outqlock;
 
 int main(int argc, char const *argv[])
 {
-	string handle;
+	string handle,
+		   h;
+	int p;
+
 	cout << "Please enter your chat handle: ";
 	getline(cin, handle);
 	cout << endl;
 
-	string h = HOST;
-	int p = PORT;
+	h = HOST;
+	p = PORT;
 	if (argc >= 2){
-		p = std::stoi(argv[1]);
+		p = std::stoi(argv[1]); // convert port number to int
 	}
 
+	/* create chat object and try to connect */
 	Chatter ch(p, h, handle, &in_q, &out_q, &inqlock, &outqlock);
 	if(!ch.connectToServer()) {
-		return 1;
+		return 1; // couldn't connect
 	}
 
+	/* succeeded in connecting, run input function in its own thread */
 	thread giThread (gatherInput, &in_q, &out_q);
-	// gatherInput(in_q);
 
+	/* start communicating */
 	if(ch.is_client) {
-		ch.clientLoop();
+		ch.clientLoop(); // loops until '\quit' is received
 	}
-	cout << "gatherInput should be working " << endl;
 
-	outqlock.lock();
-	if(!out_q.empty()) {
-		cout << "found this in the queue: " << out_q.front() << endl;
-		out_q.pop_front();
-	}
-	outqlock.unlock();
-
+	/* chat is done, clean up and exit */
 	giThread.join(); // close the input thread
 	return 0;
 }
@@ -64,7 +64,6 @@ void gatherInput(deque<string> *inq, deque<string> *outq) {
     tv.tv_sec = TO; 
     tv.tv_usec = TO_MS;
     int result; // store result of select
-		    	// cin >> std::noskipws;
 	do {
 		/* need to set these inside the loop; select will modify them*/
 		FD_ZERO (&fds);   
