@@ -26,6 +26,7 @@ private:
 	int recvAll(int socketFD, void * buf, int * amountToRecv);
 	void clearString(char * theString, int size);
 	void errorCloseSocket(const char *msg, int socketFD);
+	vector<string> splitString(string str);
 	void _cleanup();
 	
 	int clientSocket,

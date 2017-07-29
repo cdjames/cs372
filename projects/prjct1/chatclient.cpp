@@ -9,6 +9,10 @@ https://stackoverflow.com/questions/1543466/how-do-i-change-a-tcp-socket-to-be-n
 https://stackoverflow.com/questions/4181784/how-to-set-socket-timeout-in-c-when-making-multiple-connections
 
 http://www.cplusplus.com/reference/string/string/getline/
+
+Splitting strings:
+https://stackoverflow.com/questions/8448176/split-a-string-into-an-array-in-c
+https://stackoverflow.com/questions/11719538/how-to-use-stringstream-to-separate-comma-separated-strings#11719617
 */
 
 #include "chatclient.hpp"

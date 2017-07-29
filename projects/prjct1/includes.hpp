@@ -19,6 +19,9 @@
 #include <iostream>
 #include <mutex>
 #include <thread>
+#include <vector>
+#include <sstream>  //for std::istringstream
+#include <iterator> //for std::istream_iterator
 
 using std::deque;
 using std::string;
@@ -28,6 +31,7 @@ using std::cin;
 using std::cerr;
 using std::endl;
 using std::thread;
+using std::vector;
 
 /* global variables */
 #define PROC_EXIT "owaridayotto"

@@ -120,6 +120,7 @@ void Chatter::clientLoop() {
 }
 
 void Chatter::_cleanup() {
+	cout << "...quitting" << endl;
 	inlock->lock();
 	inq->push_front(PROC_EXIT);
 	inlock->unlock();
@@ -154,11 +155,27 @@ bool Chatter::checkAndReceive(int s) {
 			} else {
 				// do your printing
 				string cppstring(chatmsg);
-				cout << "got a msg: " << cppstring << endl;
+				// cout << "got a msg: " << cppstring << endl;
 				// cout << "got a msg: " << chatmsg << endl;
-				// if(!got_aitei_handle && aiteiHandle == "") {
-				// 	if(cppstring.find())
-				// }
+				if(!got_aitei_handle && aiteiHandle == "") {
+					std::size_t pos = cppstring.find(this->code);
+					if(pos != string::npos) {
+						pos = cppstring.find(":");
+						cout << "found a code" << endl;
+						// cppstring.replace(0, pos, "");
+						this->aiteiHandle = cppstring.substr(pos+1, string::npos);
+						this->got_aitei_handle = true;
+						cout << "...Speaking with " << aiteiHandle << endl;
+					}
+				} else {
+					/* */
+					int slen = cppstring.length();
+					vector<string> strparts = splitString(cppstring);
+					for (int i = 0; i < strparts.size(); i++)
+					{
+						cout << aiteiHandle << "> " << strparts[i] << endl;
+					}
+				}
 				
 			}
     	}
@@ -256,4 +273,20 @@ void Chatter::errorCloseSocket(const char *msg, int socketFD) {
 	cerr << msg << endl;
 	close(socketFD);
 	// exit(1); 
+}
+
+vector<string> Chatter::splitString(string str) {
+	std::istringstream ss(str);
+	string part;
+ 
+    vector<string> arrayTokens;
+    while(std::getline(ss, part, '\n')) {
+    	arrayTokens.push_back(part);
+    }
+    // for (int i = 0; i < arrayTokens.size(); i++)
+    // {
+    // 	cout << "token: " << arrayTokens[i] << endl;
+    // }
+
+    return arrayTokens;
 }
