@@ -48,45 +48,8 @@ bool Chatter::connectToServer(){
 	setNonBlocking(this->clientSocket);
 	setTimeout(this->clientSocket);
 
-	// Connect to server
-	// int connected = connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
-	// if (connected < 0) {// can't immediately connect socket to address
-	// 	 // cerr << "...ERROR connecting to " << this->host << ":" << this->port << endl; 
-	// 	 // return false;
-
-	// 	/* see if socket is ready to connect to (ready to write to) */
-	// 	fd_set writeSet; 
-	// 	FD_ZERO (&writeSet);   
-	// 	FD_SET (clientSocket, &writeSet);
-	// 	/* create timeouts */
-	// 	struct timeval tv;
-	// 	tv.tv_sec = 3; 
-	// 	tv.tv_usec = 0;
-		
-	// 	int result = select(clientSocket+1, NULL, &writeSet, NULL, &tv);
-
-	// 	if(result == 1) { // no select error
-	// 		int so_error;
-	//         socklen_t len = sizeof so_error;
-
-	//         getsockopt(clientSocket, SOL_SOCKET, SO_ERROR, &so_error, &len);
-
-	//         if (so_error == 0)
-	//             cout << "...Connected to " << this->host << ":" << this->port << endl;
-	//         else {
-	// 			cout << "...Connection to " << this->host << ":" << this->port << " timed out" << endl;
-	// 			return false;
-	// 		}
-	// 	} else {
-	// 		cout << "...Connection to " << this->host << ":" << this->port << " timed out" << endl;
-	// 		return false;
-	// 	}
-	// }
-	// else if (connected == 0)
-	// 	cout << "...Connected to " << this->host << ":" << this->port << endl;
-	
-	// is_client = true;
-	int connected = _connect(clientSocket, 3, serverAddress);
+	// Connect to server with timeout
+	int connected = _connect(clientSocket, TO_CONNECT, serverAddress);
 	// yay, you are connected!
 	return connected;
 }
@@ -170,7 +133,7 @@ void Chatter::clientLoop() {
 		string msg = "";
 		outlock->lock();
 		if(!outq->empty()){
-			while(!outq->empty()) {
+			while(!outq->empty() && msg.length() < MAX_BUF) {
 				msg += outq->front();
 				outq->pop_front();
 			}

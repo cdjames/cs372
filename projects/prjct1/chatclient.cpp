@@ -1,14 +1,15 @@
 
 /*
-select: 
+select/Non-block/timeout:
+https://stackoverflow.com/questions/1543466/how-do-i-change-a-tcp-socket-to-be-non-blocking#1549344
+https://stackoverflow.com/questions/4181784/how-to-set-socket-timeout-in-c-when-making-multiple-connections
+http://unix.derkeiler.com/Newsgroups/comp.unix.programmer/2008-06/msg00108.html
+https://stackoverflow.com/questions/2597608/c-socket-connection-timeout#2597774
 https://stackoverflow.com/questions/9732710/select-stdcin-and-stdgetline-not-playing-well-together#9732927
 https://stackoverflow.com/questions/6171132/non-blocking-console-input-c
 https://stackoverflow.com/questions/2597608/c-socket-connection-timeout#2597774
 
-Non-block/timeout:
-https://stackoverflow.com/questions/1543466/how-do-i-change-a-tcp-socket-to-be-non-blocking#1549344
-https://stackoverflow.com/questions/4181784/how-to-set-socket-timeout-in-c-when-making-multiple-connections
-
+input:
 http://www.cplusplus.com/reference/string/string/getline/
 
 Splitting strings:

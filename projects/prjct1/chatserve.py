@@ -1,6 +1,9 @@
 # https://stackoverflow.com/questions/8976962/is-there-any-way-to-pass-stdin-as-an-argument-to-another-process-in-python#8981813
 # https://docs.python.org/2/library/socket.html
 # https://stackoverflow.com/questions/18114560/python-catch-ctrl-c-command-prompt-really-want-to-quit-y-n-resume-executi#18115530
+# https://docs.python.org/2/library/multiprocessing.html
+# https://docs.python.org/2/library/queue.html#Queue.Empty
+#https://docs.python.org/2/library/exceptions.html
 
 from multiprocessing import Process, Queue, Lock
 import Queue as DummyQueue
@@ -54,8 +57,8 @@ class Chatter():
 	    	self.is_client = True
 	    	return True
 	    except Exception, e:
-	    	print("Unable to connect to socket at IP %s, port %d: error %s" % (h, self.port, e))
-	        print("Becoming server")
+	    	print("...Unable to connect to socket at IP %s, port %d: error %s" % (h, self.port, e))
+	        print("...Becoming server")
 	        self.s.close()
 
 	    return False # if you get here there was a failure to connect on any hosts
@@ -105,7 +108,7 @@ class Chatter():
 			self.s.bind((h, self.port))
 			self.s.listen(1)
 			self.is_server = True
-			print "...chat server started"
+			print "...Chat server started"
 			return True
 		except socket.error as msg:
 			self.s.close()
@@ -118,7 +121,7 @@ class Chatter():
 		# get new clients! this blocks
 		self.acceptNewClients() # also sends
 		self.conn.settimeout(TO)
-		print 'Connected with', self.addr
+		print '...Connected with', self.addr
 		while 1:
 			try:
 				if not wait_q.empty():
@@ -151,12 +154,12 @@ class Chatter():
 		try:
 			if close:
 				self.conn.close()
-			print "accepting new clients"
+			print "...accepting new clients"
 			self.conn, self.addr = self.s.accept()
 			# after connecting, send your handle
 			self.sendHandle(self.conn)
 		except socket.error, e:
-			print "socket closed, exiting"
+			print "...socket closed, exiting"
 			sys.exit(1)
 
 	### Common Functions ###

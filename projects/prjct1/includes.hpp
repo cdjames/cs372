@@ -38,6 +38,7 @@ using std::vector;
 #define HOST "127.0.0.1"
 #define PORT 48834
 #define TO 0
+#define TO_CONNECT 3
 #define TO_MS 500000 // 5000 ms
 #define MAX_BUF 70000
 
