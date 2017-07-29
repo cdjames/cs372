@@ -1,11 +1,14 @@
+/*********************************************************************
+** Author: Collin James
+** Date: 7/29/17
+** Description: Class to implement connecting to, sending to, receiving from server
+** for more info see "Chatter.hpp"
+*********************************************************************/
+
 #include "Chatter.hpp"
 
 Chatter::Chatter(int port, string host, string handle, deque<string> *inq, deque<string> *outq,
 		mutex *inlock, mutex *outlock) {
-
-	// clientSocket,
-	// listenSocket,
-	// connSocket
 	this->inq = inq;
 	this->outq = outq;
 	this->port = port;
@@ -29,7 +32,7 @@ bool Chatter::connectToServer(){
 	serverAddress.sin_port = htons(this->port); // Store the port number
 	serverHostInfo = gethostbyname(this->host.c_str()); // Convert the machine name into a special form of address
 	if (serverHostInfo == NULL) { 
-		cerr << "CLIENT: ERROR, no such host\n" << endl;
+		cerr << "...ERROR, no such host: " << this->host << endl;
 		return false;
 	}
 	// Copy in the address
@@ -38,18 +41,18 @@ bool Chatter::connectToServer(){
 	// Set up the socket
 	clientSocket = socket(AF_INET, SOCK_STREAM, 0); // Create the socket
 	if (clientSocket < 0) { 
-		cerr << "CLIENT: ERROR opening socket" << endl; 
+		cerr << "...ERROR opening socket" << endl; 
 		return false; 
 	}
 
 	// Connect to server
 	int connected = connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
 	if (connected < 0) {// Connect socket to address
-		 cerr << "CLIENT: ERROR connecting" << endl; 
+		 cerr << "...ERROR connecting to " << this->host << ":" << this->port << endl; 
 		 return false;
 	}
 	else
-		cout << "connected!" << endl;
+		cout << "...Connected to " << this->host << ":" << this->port << endl;
 	
 	is_client = true;
 	// yay, you are connected!
@@ -106,13 +109,11 @@ void Chatter::clientLoop() {
 				quit = true;
 			}
 		} else {
-			// outlock->unlock();
 			// try receiving
 			if(!checkAndReceive(clientSocket)) {
 				// socket is broken, cleanup and exit
 				quit = true;
-			}
-			
+			}	
 		}
 		outlock->unlock();
 	}
@@ -127,8 +128,9 @@ void Chatter::_cleanup() {
 }
 
 bool Chatter::checkAndReceive(int s) {
-	char chatmsg[MAX_BUF];
-	int recvFail;
+	char chatmsg[MAX_BUF]; // hold received message
+	int recvFail; // return message from recvMsg()
+	/* set up select() variables */
 	fd_set fds; 
 	FD_ZERO (&fds);   
     FD_SET (s, &fds);
@@ -136,64 +138,56 @@ bool Chatter::checkAndReceive(int s) {
     struct timeval tv;
     tv.tv_sec = TO; 
     tv.tv_usec = TO_MS;
+    /* see if socket is ready to read on */
     int result = select(s + 1, &fds, NULL, NULL, &tv);
-	    // cout << "select returned " << result << endl;
+
     if(result != -1) { // no error
-    	if (FD_ISSET(s, &fds)) { 
-    		// try to read data
-    		/* receive encrypted text; it will have newline already appended */
-			clearString(chatmsg, MAX_BUF+1);
+    	if (FD_ISSET(s, &fds)) { // ready to read
+    		/* receive text */
 			recvFail = recvMsg(chatmsg, MAX_BUF+1, s);
-			// if(recvFail < 0 || recvFail > 0){
 			if(recvFail > 0){
-				// if(recvFail < 0)
-				// 	errorCloseSocket("CLIENT: ERROR reading encrypted text", s);
-				// else 
-				// if(recvFail > 0)
-					errorCloseSocket("Connection closed by server", s);
+				errorCloseSocket("...Connection closed by server", s);
 				return false;
 			} else {
 				// do your printing
-				string cppstring(chatmsg);
-				// cout << "got a msg: " << cppstring << endl;
-				// cout << "got a msg: " << chatmsg << endl;
+				string cppstring(chatmsg); // create a c++ string from the c string
+
+				/* determine who you're speaking to */
 				if(!got_aitei_handle && aiteiHandle == "") {
+					/* try to find the code */
 					std::size_t pos = cppstring.find(this->code);
 					if(pos != string::npos) {
+						/* extract info after ":" */
 						pos = cppstring.find(":");
-						cout << "found a code" << endl;
-						// cppstring.replace(0, pos, "");
 						this->aiteiHandle = cppstring.substr(pos+1, string::npos);
 						this->got_aitei_handle = true;
+						// print
 						cout << "...Speaking with " << aiteiHandle << endl;
 					}
-				} else {
-					/* */
-					int slen = cppstring.length();
-					vector<string> strparts = splitString(cppstring);
+				} else { // print messages normally
+					/* just in case messages are coming in really fast, make sure they don't
+					   have any \n mixed in by splitting on \n */
+					vector<string> strparts;
+					splitString(cppstring, strparts);
 					for (int i = 0; i < strparts.size(); i++)
-					{
 						cout << aiteiHandle << "> " << strparts[i] << endl;
-					}
 				}
 				
 			}
     	}
     }
-    return true;
+    return true; // all good!
 }
 
 int Chatter::sendAll(int s, const void * msg, string tosend, int *amountToSend) {
-	// figure out how much needs to be sent
-
 	int total = 0; // amount sent
 	int amt;
 	int bytesToSend = *amountToSend;
 	int returnThis = 0;
-	/* search for quit */
+	/* search for quit and get out here! */
 	if(tosend.find("\\quit") != string::npos)
 		return -1;
-	// cout << "trying to send" << endl;
+	/* otherwise, send everything */
 	while(total < *amountToSend){
 		// send
 		amt = send(s, msg+total, bytesToSend, 0);
@@ -222,14 +216,14 @@ int Chatter::recvMsg(char * buf, int buf_len, int cnctFD){
 	int recvFail,
 		amtToRecv = buf_len-1;
 
-	memset(buf, '\0', buf_len);
+	clearString(buf, buf_len);
 
 	recvFail = recvAll(cnctFD, buf, &amtToRecv); // Read the client's message from the socket
 
-	if (recvFail < 0) {
+	if (recvFail < 0) { // connection closed
 		return -1;
 	}
-	else if (recvFail > 0){
+	else if (recvFail > 0) { // no data sent
 		return 1;
 	}
 	
@@ -247,10 +241,10 @@ int Chatter::recvAll(int socketFD, void * buf, int * amountToRecv) {
 		amt = recv(socketFD, buf+total, bytesToRecv, 0);
 		/* get out of loop on send error */
 		if(amt == -1 || amt == 0){
-			if(amt == -1)
+			if(amt == -1) // error, connection closed
 				returnThis = amt;
 			else
-				returnThis = 1;
+				returnThis = 1; // no data sent
 			break;
 		}
 
@@ -275,18 +269,11 @@ void Chatter::errorCloseSocket(const char *msg, int socketFD) {
 	// exit(1); 
 }
 
-vector<string> Chatter::splitString(string str) {
+void Chatter::splitString(string str, vector<string> &container) {
 	std::istringstream ss(str);
 	string part;
  
-    vector<string> arrayTokens;
     while(std::getline(ss, part, '\n')) {
-    	arrayTokens.push_back(part);
+    	container.push_back(part);
     }
-    // for (int i = 0; i < arrayTokens.size(); i++)
-    // {
-    // 	cout << "token: " << arrayTokens[i] << endl;
-    // }
-
-    return arrayTokens;
 }

@@ -21,7 +21,6 @@
 #include <thread>
 #include <vector>
 #include <sstream>  //for std::istringstream
-#include <iterator> //for std::istream_iterator
 
 using std::deque;
 using std::string;
@@ -37,8 +36,8 @@ using std::vector;
 #define PROC_EXIT "owaridayotto"
 #define HOST "127.0.0.1"
 #define PORT 48834
-#define TO 1
-#define TO_MS 0
+#define TO 0
+#define TO_MS 500000 // 5000 ms
 #define MAX_BUF 70000
 
 #endif

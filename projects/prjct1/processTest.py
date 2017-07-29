@@ -18,7 +18,7 @@ out_q = Queue() # use the multiprocessing Queue (Fifo); for sending messages
 wait_q = DummyQueue.LifoQueue() # needed for Lifo
 in_q = Queue() # for closing gatherInput() process
 mutex = Lock()
-TO = 1
+TO = 0.5
 original_sigint = signal.getsignal(signal.SIGINT)
 PROC_EXIT = "owaridayotto"
 
@@ -53,7 +53,7 @@ class Chatter():
 	    	self.s.settimeout(TO)
 	    	return True
 	    except Exception, e:
-	    	print("Unable to connect to socket at IP %s, port %d: error %s" % (h, port, e))
+	    	print("Unable to connect to socket at IP %s, port %d: error %s" % (h, self.port, e))
 	        print("Becoming server")
 	        self.s.close()
 
@@ -78,6 +78,7 @@ class Chatter():
 				else:
 					try:
 						if self.checkAndReceive(self.s) == False:
+							print "...quitting"
 							self._cleanup()
 					except socket.timeout:
 						pass
@@ -167,7 +168,7 @@ class Chatter():
 		totalsent = 0
 		msglen = len(msg)
 		if '\\quit\n' in msg:
-			print "exiting chat"
+			print "...exiting chat"
 			raise SystemExit
 		# send until all is sent
 		while totalsent < msglen:
@@ -181,7 +182,7 @@ class Chatter():
 			except Exception, e:
 			    # if sent == 0:
 				print e
-				print "connection broken"
+				print "...connection broken"
 				raise RuntimeError("socket connection broken")
 			totalsent = totalsent + sent
 		return totalsent
@@ -196,6 +197,7 @@ class Chatter():
 					return False
 				# don't strip the trailing "\n" here because it was gathered with raw_input,
 				# which doesn't add it like sys.stdin.readline()
+				## determine who you're speaking to
 				if not self.gotAiteiHandle and self.aiteiHandle == "":
 					if self.code in data:
 						# print data
@@ -222,6 +224,7 @@ class Chatter():
 		return True
 
 	def _cleanup(self):
+		print "...quitting"
 		in_q.put(PROC_EXIT) # exit gatherInput process
 		self.s.close()
 		mainCleanup()
@@ -293,4 +296,4 @@ if __name__ == '__main__':
 		ch.serverLoop()
 
 	# just in case, clean up if you get here
-	mainCleanup()
+	# mainCleanup()
