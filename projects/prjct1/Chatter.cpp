@@ -102,6 +102,9 @@ void Chatter::clientLoop() {
 			amt = msg.length();
 			int success = sendAll(clientSocket, msg.c_str(), msg, &amt);
 			if(success == -1) {
+				inlock->lock();
+				inq->push_front(PROC_EXIT);
+				inlock->unlock();
 				outlock->unlock();
 				break;
 			}

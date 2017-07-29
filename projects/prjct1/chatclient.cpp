@@ -44,7 +44,6 @@ int main(int argc, char const *argv[])
 	}
 	cout << "gatherInput should be working " << endl;
 
-	// std::this_thread::sleep_for(std::chrono::milliseconds(5000));
 	outqlock.lock();
 	if(!out_q.empty()) {
 		cout << "found this in the queue: " << out_q.front() << endl;
@@ -52,9 +51,6 @@ int main(int argc, char const *argv[])
 	}
 	outqlock.unlock();
 
-	inqlock.lock();
-	in_q.push_back(PROC_EXIT);
-	inqlock.unlock();
 	giThread.join(); // close the input thread
 	return 0;
 }
