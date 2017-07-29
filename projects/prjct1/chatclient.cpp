@@ -22,7 +22,7 @@ int main(int argc, char const *argv[])
 {
 	string handle;
 	cout << "Please enter your chat handle: ";
-	cin >> handle;
+	getline(cin, handle);
 	cout << endl;
 
 	string h = HOST;
@@ -43,7 +43,8 @@ int main(int argc, char const *argv[])
 		ch.clientLoop();
 	}
 	cout << "gatherInput should be working " << endl;
-	std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+
+	// std::this_thread::sleep_for(std::chrono::milliseconds(5000));
 	outqlock.lock();
 	if(!out_q.empty()) {
 		cout << "found this in the queue: " << out_q.front() << endl;
@@ -54,7 +55,6 @@ int main(int argc, char const *argv[])
 	inqlock.lock();
 	in_q.push_back(PROC_EXIT);
 	inqlock.unlock();
-		
 	giThread.join(); // close the input thread
 	return 0;
 }
@@ -87,8 +87,8 @@ void gatherInput(deque<string> *inq, deque<string> *outq) {
 	    // cout << "select returned " << result << endl;
 	    if(result != -1) { // no error
 	    	if (FD_ISSET(STDIN_FILENO, &fds)) { // check if stdin is ready
-		    	cin >> i;
-			    cout << "you wrote " << i << endl;
+		    	getline(cin,i);
+			    // cout << "you wrote " << i << endl;
 			    outqlock.lock();
 			    outq->push_back(i);
 			    outqlock.unlock();
@@ -99,5 +99,4 @@ void gatherInput(deque<string> *inq, deque<string> *outq) {
 
 
 	} while (quit_string != PROC_EXIT && i != PROC_EXIT); // remove i from this for final implementation
-
 }

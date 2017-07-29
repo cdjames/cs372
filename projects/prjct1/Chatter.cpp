@@ -94,18 +94,17 @@ void Chatter::clientLoop() {
 		string msg = "";
 		outlock->lock();
 		if(!outq->empty()){
-			// cout << "outq size before: " << outq->size() << endl;
 			while(!outq->empty()) {
 				msg += outq->front();
 				outq->pop_front();
-				// cout << "outq size: " << outq->size() << endl;
 			}
 			msg += "\n";
 			amt = msg.length();
 			int success = sendAll(clientSocket, msg.c_str(), msg, &amt);
-			// cout << success << endl;
-			if(success == -1)
+			if(success == -1) {
+				outlock->unlock();
 				break;
+			}
 		}
 		outlock->unlock();
 	}
