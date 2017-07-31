@@ -131,11 +131,11 @@ void Chatter::clientLoop() {
 	int amt;
 	bool quit = false;
 	while(!quit) {
+		gatherInput();
 		string msg = "";
 		outlock->lock(); // make sure no one else is using the queue
 		if(!outq->empty()){ // check the queue and try to send
 			while(!outq->empty() && msg.length() < MAX_BUF) {
-				cout << "found something in the queue " << endl;
 				msg += outq->front();
 				outq->pop_front();
 			}
@@ -155,6 +155,50 @@ void Chatter::clientLoop() {
 		outlock->unlock();
 	}
 	_cleanup();
+}
+
+void Chatter::gatherInput() {
+	string quit_string = "", // special "code" that will be sent from main to end loop
+			i = ""; // input from user 
+	fd_set fds; // for working with select(); set inside loop
+
+	/* create timeouts from global defaults */
+    struct timeval tv;
+    tv.tv_sec = TO; 
+    tv.tv_usec = TO_MS;
+    int result; // store result of select
+
+    /* loop until you get the quit signal. Relay messages to the outq */
+	// do {
+		/* need to set these inside the loop; select will modify them*/
+		FD_ZERO (&fds);   
+	    FD_SET (STDIN_FILENO, &fds); // we want to read from stdin
+	    /* make sure no one else is trying to use the queue and gather quit signal if any */
+	    inlock->lock();
+		if (!inq->empty()) {
+			quit_string = inq->front();
+			inq->pop_front();
+		} else {
+			quit_string = "";
+		}
+		inlock->unlock();
+		/* figure out if we can read on stdin */
+	    result = select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv);
+	    if(result != -1) { // no error
+	    	if (FD_ISSET(STDIN_FILENO, &fds)) { // check if stdin is ready
+		    	getline(cin,i);
+		    	/* put the user's message in the outq for the Chatter object */
+			    outlock->lock();
+			    outq->push_back(i);
+			    outlock->unlock();
+			}
+		} else {
+			cout << "error " << errno << endl;
+		}
+		/* you can input the code to kill the thread (i) 
+			It's in Japanese so people most likely won't stumble on it by accident 
+			Normally, the main thread will send this code */
+	// } while (quit_string != PROC_EXIT && i != PROC_EXIT); 
 }
 
 void Chatter::_cleanup() {

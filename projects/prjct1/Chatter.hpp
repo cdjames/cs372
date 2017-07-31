@@ -72,6 +72,7 @@ private:
 	*********************************************************************/
 	bool setNonBlocking(int s);
 
+	void gatherInput();
 	/*********************************************************************
 	** Description: sendAll()
 	** Params: socket FD, c string, c++ string (same as msg), length of string

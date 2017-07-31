@@ -66,7 +66,7 @@ int main(int argc, char const *argv[])
 	}
 
 	/* succeeded in connecting, run input function in its own thread */
-	thread giThread (gatherInput, &in_q, &out_q);
+	// thread giThread (gatherInput, &in_q, &out_q);
 
 	/* start communicating */
 	if(ch.is_client) {
@@ -74,7 +74,7 @@ int main(int argc, char const *argv[])
 	}
 
 	/* chat is done, clean up and exit */
-	giThread.join(); // close the input thread
+	// giThread.join(); // close the input thread
 	return 0;
 }
 
@@ -83,46 +83,46 @@ int main(int argc, char const *argv[])
 ** Params: deque inq for ending the loop; outq for communicating messages to main thread
 ** Waits for user to input text on stdin and relays that to main thread
 *********************************************************************/
-void gatherInput(deque<string> *inq, deque<string> *outq) {
-	string quit_string = "", // special "code" that will be sent from main to end loop
-			i = ""; // input from user 
-	fd_set fds; // for working with select(); set inside loop
+// void gatherInput(deque<string> *inq, deque<string> *outq) {
+// 	string quit_string = "", // special "code" that will be sent from main to end loop
+// 			i = ""; // input from user 
+// 	fd_set fds; // for working with select(); set inside loop
 
-	/* create timeouts from global defaults */
-    struct timeval tv;
-    tv.tv_sec = TO; 
-    tv.tv_usec = TO_MS;
-    int result; // store result of select
+// 	/* create timeouts from global defaults */
+//     struct timeval tv;
+//     tv.tv_sec = TO; 
+//     tv.tv_usec = TO_MS;
+//     int result; // store result of select
 
-    /* loop until you get the quit signal. Relay messages to the outq */
-	do {
-		/* need to set these inside the loop; select will modify them*/
-		FD_ZERO (&fds);   
-	    FD_SET (STDIN_FILENO, &fds); // we want to read from stdin
-	    /* make sure no one else is trying to use the queue and gather quit signal if any */
-	    inqlock.lock();
-		if (!inq->empty()) {
-			quit_string = inq->front();
-			inq->pop_front();
-		} else {
-			quit_string = "";
-		}
-		inqlock.unlock();
-		/* figure out if we can read on stdin */
-	    result = select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv);
-	    if(result != -1) { // no error
-	    	if (FD_ISSET(STDIN_FILENO, &fds)) { // check if stdin is ready
-		    	getline(cin,i);
-		    	/* put the user's message in the outq for the Chatter object */
-			    outqlock.lock();
-			    outq->push_back(i);
-			    outqlock.unlock();
-			}
-		} else {
-			cout << "error " << errno << endl;
-		}
-		/* you can input the code to kill the thread (i) 
-			It's in Japanese so people most likely won't stumble on it by accident 
-			Normally, the main thread will send this code */
-	} while (quit_string != PROC_EXIT && i != PROC_EXIT); 
-}
+//     /* loop until you get the quit signal. Relay messages to the outq */
+// 	do {
+// 		/* need to set these inside the loop; select will modify them*/
+// 		FD_ZERO (&fds);   
+// 	    FD_SET (STDIN_FILENO, &fds); // we want to read from stdin
+// 	    /* make sure no one else is trying to use the queue and gather quit signal if any */
+// 	    inqlock.lock();
+// 		if (!inq->empty()) {
+// 			quit_string = inq->front();
+// 			inq->pop_front();
+// 		} else {
+// 			quit_string = "";
+// 		}
+// 		inqlock.unlock();
+// 		/* figure out if we can read on stdin */
+// 	    result = select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv);
+// 	    if(result != -1) { // no error
+// 	    	if (FD_ISSET(STDIN_FILENO, &fds)) { // check if stdin is ready
+// 		    	getline(cin,i);
+// 		    	/* put the user's message in the outq for the Chatter object */
+// 			    outqlock.lock();
+// 			    outq->push_back(i);
+// 			    outqlock.unlock();
+// 			}
+// 		} else {
+// 			cout << "error " << errno << endl;
+// 		}
+// 		/* you can input the code to kill the thread (i) 
+// 			It's in Japanese so people most likely won't stumble on it by accident 
+// 			Normally, the main thread will send this code */
+// 	} while (quit_string != PROC_EXIT && i != PROC_EXIT); 
+// }
