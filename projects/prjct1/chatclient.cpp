@@ -40,7 +40,7 @@ int main(int argc, char const *argv[])
 	/* set default host and port */
 	h = HOST;
 	p = PORT;
-	
+
 	/* deal with command line parameters */
 	if (argc >= 2){
 		if(argv[1][0] == '-' && argv[1][1] == 'h') { // print usage
@@ -96,6 +96,7 @@ void gatherInput(deque<string> *inq, deque<string> *outq) {
 
     /* loop until you get the quit signal. Relay messages to the outq */
 	do {
+		cout << "in gather input" << endl;
 		/* need to set these inside the loop; select will modify them*/
 		FD_ZERO (&fds);   
 	    FD_SET (STDIN_FILENO, &fds); // we want to read from stdin
