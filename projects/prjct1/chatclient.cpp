@@ -46,11 +46,12 @@ int main(int argc, char const *argv[])
 		if(argv[1][0] == '-' && argv[1][1] == 'h') { // print usage
 			cout << USAGE << endl;
 			exit(0);
-		} else { // get port number
-			p = std::stoi(argv[1]); // convert port number to int
+		} else { // get host IP
+			h = argv[1];
+			cout << "h=" << h << endl;
 		}
-		if (argc >= 3) { // get host IP
-			h = argv[2];
+		if (argc >= 3) { // get port number
+			p = std::stoi(argv[2]); // convert port number to int
 		}
 	}
 

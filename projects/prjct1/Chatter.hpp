@@ -72,7 +72,8 @@ private:
 	*********************************************************************/
 	bool setNonBlocking(int s);
 
-	void gatherInput();
+	void gatherInput(); // !!! see chatclient.cpp for notes
+
 	/*********************************************************************
 	** Description: sendAll()
 	** Params: socket FD, c string, c++ string (same as msg), length of string

@@ -23,7 +23,7 @@ import socket
 import signal
 
 # global variables
-usage = "python chatserve.py [-help] [port] [ip]" # how to use
+usage = "python chatserve.py [-help] [ip] [port]" # how to use
 host = "127.0.0.1" # default IP to connect to 
 port = 48834 # default port
 out_q = Queue() # use the multiprocessing Queue (Fifo); for sending messages
@@ -295,9 +295,9 @@ if __name__ == '__main__':
 			print usage
 			sys.exit(0)
 		else:
-			p = sys.argv[1] # get port
+			h = sys.argv[1] # get host
 		if len(sys.argv) >= 3:
-			h = sys.argv[2] # get host
+			p = sys.argv[2] # get port
 	# start the Chatter object
 	ch = Chatter(port=p, handle=getUserName())
 	if not ch.connect(h): # try to become client

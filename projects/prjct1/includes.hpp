@@ -39,7 +39,7 @@ using std::thread;
 using std::vector;
 
 /* global variables */
-#define USAGE "./chatclient [-help] [port] [ip]"
+#define USAGE "./chatclient [-help] [ip] [port]"
 #define PROC_EXIT "owaridayotto" // "code word" to tell a thread to stop
 #define HOST "127.0.0.1" // default IP
 #define PORT 48834 // default port
