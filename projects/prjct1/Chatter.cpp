@@ -2,7 +2,7 @@
 ** Author: Collin James
 ** Date: 7/29/17
 ** Description: Class to implement connecting to, sending to, receiving from server
-** for more info see "Chatter.hpp"
+** for method info see "Chatter.hpp"
 *********************************************************************/
 
 #include "Chatter.hpp"
@@ -44,7 +44,7 @@ bool Chatter::connectToServer(){
 		cerr << "...ERROR opening socket" << endl; 
 		return false; 
 	}
-
+	/* make the socket non-blocking and give a timeout on receive and send */
 	setNonBlocking(this->clientSocket);
 	setTimeout(this->clientSocket);
 
@@ -81,9 +81,9 @@ bool Chatter::_connect(int s, int to, struct sockaddr_in serverAddress) {
 	            success = true;
 		} 
 	} else if (connected == 0) {
-		success = true;
+		success = true; // you connected immediately somehow
 	}
-	
+	/* print status */
 	if (success) {
 		cout << "...Connected to " << this->host << ":" << this->port << endl;
 		is_client = true;
@@ -97,42 +97,43 @@ bool Chatter::_connect(int s, int to, struct sockaddr_in serverAddress) {
 int Chatter::sendHandle(int s) {
 	int charsWritten = 0;
 	if(!handle_sent) {
-		string msg = code + handle;
+		string msg = code + handle; // i.e. "namae:Collin"
 		charsWritten = send(s, msg.c_str(), msg.length(), 0);
 	}
 	return charsWritten;
 }
 
 bool Chatter::setNonBlocking(int s) {
+	// help here: https://stackoverflow.com/questions/4181784/how-to-set-socket-timeout-in-c-when-making-multiple-connections
 	int flags = fcntl(s, F_GETFL, 0);
-	if (flags < 0) return false;
+	if (flags < 0) 
+		return false;
 	flags = flags | O_NONBLOCK;
-	return (fcntl(s, F_SETFL, flags) == 0) ? true : false;
+	return (fcntl(s, F_SETFL, flags) == 0) ? true : false; // ternary if statement; if condition send true, else fals
 }
 
 bool Chatter::setTimeout(int s) {
 	struct timeval tv;
     tv.tv_sec = TO; 
     tv.tv_usec = TO_MS;
-	if (setsockopt (s, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(tv)) < 0)
+	if (setsockopt (s, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(tv)) < 0) // receive timeout
 		return false;
 
-    if (setsockopt (s, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv,  sizeof(tv)) < 0)
+    if (setsockopt (s, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv,  sizeof(tv)) < 0) // send timeout
 		return false;
 	return true;
 }
 
 void Chatter::clientLoop() {
-	// setNonBlocking(this->clientSocket);
-	// setTimeout(this->clientSocket);
+
 	sendHandle(this->clientSocket);
 
 	int amt;
 	bool quit = false;
 	while(!quit) {
 		string msg = "";
-		outlock->lock();
-		if(!outq->empty()){
+		outlock->lock(); // make sure no one else is using the queue
+		if(!outq->empty()){ // check the queue and try to send
 			while(!outq->empty() && msg.length() < MAX_BUF) {
 				msg += outq->front();
 				outq->pop_front();
@@ -158,7 +159,7 @@ void Chatter::clientLoop() {
 void Chatter::_cleanup() {
 	cout << "...quitting" << endl;
 	inlock->lock();
-	inq->push_front(PROC_EXIT);
+	inq->push_front(PROC_EXIT); // tell input thread to stop
 	inlock->unlock();
 }
 
@@ -271,7 +272,6 @@ int Chatter::recvAll(int socketFD, void * buf, int * amountToRecv) {
 		bytesToRecv = *amountToRecv,
 		returnThis = 0;
 	
-	// cout << "rec. bytes: " << bytesToRecv << endl;
 	while(total < *amountToRecv){
 		amt = recv(socketFD, buf+total, bytesToRecv, 0);
 		/* get out of loop on send error */
@@ -305,10 +305,13 @@ void Chatter::errorCloseSocket(const char *msg, int socketFD) {
 }
 
 void Chatter::splitString(string str, vector<string> &container) {
+	/* help here: https://stackoverflow.com/questions/8448176/split-a-string-into-an-array-in-c
+				  https://stackoverflow.com/questions/11719538/how-to-use-stringstream-to-separate-comma-separated-strings#11719617 */
+
 	std::istringstream ss(str);
 	string part;
  
-    while(std::getline(ss, part, '\n')) {
+    while(std::getline(ss, part, '\n')) { // tell getline to split on \n instead of space 
     	container.push_back(part);
     }
 }

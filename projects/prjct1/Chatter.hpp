@@ -1,8 +1,9 @@
 /*********************************************************************
 ** Author: Collin James
 ** Date: 7/29/17
-** Description: Class to implement connecting to, sending to, receiving from server (header)
-** Uses code from cs344 server assignment (recvMsg, recvAll, sendAll)
+** Description: CS 372 Project 1: Class to implement connecting to, sending to, receiving from server (header)
+** Uses code and ideas from cs344 server assignment (recvMsg, recvAll, sendAll)
+** other sources attributed in chatclient.cpp
 *********************************************************************/
 
 #ifndef CHATTER_H
@@ -103,8 +104,18 @@ private:
 	int recvAll(int socketFD, void * buf, int * amountToRecv);
 
 	/* utility methods */
+	/*********************************************************************
+	** Description: clearString
+	** convenience method for clearing c string via memset. mostly for readability
+	*********************************************************************/
 	void clearString(char * theString, int size);
+
+	/*********************************************************************
+	** Description: errorCloseSocket
+	** Convenience method for printing a message and closing a socket
+	*********************************************************************/
 	void errorCloseSocket(const char *msg, int socketFD);
+	
 	/*********************************************************************
 	** Description: 
 	** got help here:
@@ -113,21 +124,27 @@ private:
 	https://stackoverflow.com/questions/11719538/how-to-use-stringstream-to-separate-comma-separated-strings#11719617
 	*********************************************************************/
 	void splitString(string str, vector<string> &container);
+	
+	/*********************************************************************
+	** Description: _cleanup()
+	** 
+	*********************************************************************/
 	void _cleanup();
 	
 	/* private variables */
 	int clientSocket,
 		listenSocket, // not used
 		connSocket, // not used
-		port;
-	bool got_aitei_handle,
-		 handle_sent;
-	string aiteiHandle,
-		   code,
-		   handle,
-		   host;
-	mutex *inlock, *outlock;
-	deque<string> *inq, *outq;
+		port; // keep track of the port
+	bool got_aitei_handle, // tracks whether you have your conversant's handle
+		 handle_sent; // tracks whether you have sent your handle
+	string aiteiHandle, // keep your conversant's handle
+		   code, // code for gathering handle
+		   handle, // your handle
+		   host; // keep track of the host IP
+	deque<string> *inq,  // for shutting down input thread
+				  *outq; // for getting messages from input thread
+	mutex *inlock, *outlock; // for locking access to queues
 };
 
 #endif
