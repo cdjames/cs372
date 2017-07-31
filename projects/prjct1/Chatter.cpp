@@ -135,6 +135,7 @@ void Chatter::clientLoop() {
 		outlock->lock(); // make sure no one else is using the queue
 		if(!outq->empty()){ // check the queue and try to send
 			while(!outq->empty() && msg.length() < MAX_BUF) {
+				cout << "found something in the queue " << endl;
 				msg += outq->front();
 				outq->pop_front();
 			}

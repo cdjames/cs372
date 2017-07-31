@@ -96,7 +96,6 @@ void gatherInput(deque<string> *inq, deque<string> *outq) {
 
     /* loop until you get the quit signal. Relay messages to the outq */
 	do {
-		cout << "in gather input" << endl;
 		/* need to set these inside the loop; select will modify them*/
 		FD_ZERO (&fds);   
 	    FD_SET (STDIN_FILENO, &fds); // we want to read from stdin
