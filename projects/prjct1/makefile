@@ -1,6 +1,7 @@
 # type 'make'; run with ./chatclient
 
 OPS = -std=c++11
+OPS += -lpthread
 # OPS += -g 
 # OPS += -ggdb
 # OPS += -Wall 
