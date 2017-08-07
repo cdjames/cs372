@@ -1,7 +1,10 @@
+# type 'make'; run with ./chatclient
+
 OPS = -std=c++11
-OPS += -g 
-OPS += -ggdb
-OPS += -Wall 
+OPS += -lpthread
+# OPS += -g 
+# OPS += -ggdb
+# OPS += -Wall 
 
 CXX = chatclient.cpp
 CXX += Chatter.o
@@ -17,4 +20,4 @@ chatclient: Chatter.o
 	g++ ${CXX} -o ${PROG1} ${OPS}
 
 clean:
-	rm *.exe *.o
+	rm -r *.exe *.o ${PROG1} *.dSYM

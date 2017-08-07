@@ -1,11 +1,14 @@
+/*********************************************************************
+** Author: Collin James
+** Date: 7/29/17
+** Description: Class to implement connecting to, sending to, receiving from server
+** for method info see "Chatter.hpp"
+*********************************************************************/
+
 #include "Chatter.hpp"
 
 Chatter::Chatter(int port, string host, string handle, deque<string> *inq, deque<string> *outq,
 		mutex *inlock, mutex *outlock) {
-
-	// clientSocket,
-	// listenSocket,
-	// connSocket
 	this->inq = inq;
 	this->outq = outq;
 	this->port = port;
@@ -29,7 +32,7 @@ bool Chatter::connectToServer(){
 	serverAddress.sin_port = htons(this->port); // Store the port number
 	serverHostInfo = gethostbyname(this->host.c_str()); // Convert the machine name into a special form of address
 	if (serverHostInfo == NULL) { 
-		cerr << "CLIENT: ERROR, no such host\n" << endl;
+		cerr << "...ERROR, no such host: " << this->host << endl;
 		return false;
 	}
 	// Copy in the address
@@ -38,90 +41,234 @@ bool Chatter::connectToServer(){
 	// Set up the socket
 	clientSocket = socket(AF_INET, SOCK_STREAM, 0); // Create the socket
 	if (clientSocket < 0) { 
-		cerr << "CLIENT: ERROR opening socket" << endl; 
+		cerr << "...ERROR opening socket" << endl; 
 		return false; 
 	}
+	/* make the socket non-blocking and give a timeout on receive and send */
+	setNonBlocking(this->clientSocket);
+	setTimeout(this->clientSocket);
 
-	// Connect to server
-	int connected = connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
-	if (connected < 0) {// Connect socket to address
-		 cerr << "CLIENT: ERROR connecting" << endl; 
-		 return false;
-	}
-	else
-		cout << "connected!" << endl;
-	
-	is_client = true;
+	// Connect to server with timeout
+	int connected = _connect(clientSocket, TO_CONNECT, serverAddress);
 	// yay, you are connected!
-	return true;
+	return connected;
+}
+
+bool Chatter::_connect(int s, int to, struct sockaddr_in serverAddress) {
+	bool success = false;
+	int connected = connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
+	if (connected < 0) { // can't immediately connect socket to address
+		 // cerr << "...ERROR connecting to " << this->host << ":" << this->port << endl; 
+		 // return false;
+
+		/* see if socket is ready to connect to (ready to write to) */
+		fd_set writeSet; 
+		FD_ZERO (&writeSet);   
+		FD_SET (clientSocket, &writeSet);
+		/* create timeouts */
+		struct timeval tv;
+		tv.tv_sec = to; 
+		tv.tv_usec = TO_MS;
+		
+		int result = select(clientSocket+1, NULL, &writeSet, NULL, &tv);
+		if(result == 1) { // no select error
+			int so_error;
+	        socklen_t len = sizeof so_error;
+
+	        getsockopt(clientSocket, SOL_SOCKET, SO_ERROR, &so_error, &len);
+
+	        if (so_error == 0) // connected
+	            success = true;
+		} 
+	} else if (connected == 0) {
+		success = true; // you connected immediately somehow
+	}
+	/* print status */
+	if (success) {
+		cout << "...Connected to " << this->host << ":" << this->port << endl;
+		is_client = true;
+	} else {
+		cout << "...Connection to " << this->host << ":" << this->port << " timed out" << endl;
+	}
+
+	return success;
 }
 
 int Chatter::sendHandle(int s) {
 	int charsWritten = 0;
 	if(!handle_sent) {
-		string msg = code + handle;
+		string msg = code + handle; // i.e. "namae:Collin"
 		charsWritten = send(s, msg.c_str(), msg.length(), 0);
 	}
 	return charsWritten;
 }
 
 bool Chatter::setNonBlocking(int s) {
+	// help here: https://stackoverflow.com/questions/4181784/how-to-set-socket-timeout-in-c-when-making-multiple-connections
 	int flags = fcntl(s, F_GETFL, 0);
-	if (flags < 0) return false;
-	flags = flags&~O_NONBLOCK;
-	return (fcntl(s, F_SETFL, flags) == 0) ? true : false;
+	if (flags < 0) 
+		return false;
+	flags = flags | O_NONBLOCK;
+	return (fcntl(s, F_SETFL, flags) == 0) ? true : false; // ternary if statement; if condition send true, else fals
 }
 
 bool Chatter::setTimeout(int s) {
 	struct timeval tv;
     tv.tv_sec = TO; 
     tv.tv_usec = TO_MS;
-	if (setsockopt (s, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(tv)) < 0)
+	if (setsockopt (s, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(tv)) < 0) // receive timeout
 		return false;
 
-    if (setsockopt (s, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv,  sizeof(tv)) < 0)
+    if (setsockopt (s, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv,  sizeof(tv)) < 0) // send timeout
 		return false;
 	return true;
 }
 
 void Chatter::clientLoop() {
-	setNonBlocking(this->clientSocket);
-	setTimeout(this->clientSocket);
+
 	sendHandle(this->clientSocket);
 
 	int amt;
-	while(1) {
+	bool quit = false;
+	while(!quit) {
+		gatherInput();
 		string msg = "";
-		outlock->lock();
-		if(!outq->empty()){
-			// cout << "outq size before: " << outq->size() << endl;
-			while(!outq->empty()) {
+		outlock->lock(); // make sure no one else is using the queue
+		if(!outq->empty()){ // check the queue and try to send
+			while(!outq->empty() && msg.length() < MAX_BUF) {
 				msg += outq->front();
 				outq->pop_front();
-				// cout << "outq size: " << outq->size() << endl;
 			}
 			msg += "\n";
 			amt = msg.length();
 			int success = sendAll(clientSocket, msg.c_str(), msg, &amt);
-			// cout << success << endl;
-			if(success == -1)
-				break;
+			if(success == -1) {
+				quit = true;
+			}
+		} else {
+			// try receiving
+			if(!checkAndReceive(clientSocket)) {
+				// socket is broken, cleanup and exit
+				quit = true;
+			}	
 		}
 		outlock->unlock();
 	}
+	_cleanup();
+}
+
+void Chatter::gatherInput() {
+	string quit_string = "", // special "code" that will be sent from main to end loop
+			i = ""; // input from user 
+	fd_set fds; // for working with select(); set inside loop
+
+	/* create timeouts from global defaults */
+    struct timeval tv;
+    tv.tv_sec = TO; 
+    tv.tv_usec = TO_MS;
+    int result; // store result of select
+
+    /* loop until you get the quit signal. Relay messages to the outq */
+	// do {
+		/* need to set these inside the loop; select will modify them*/
+		FD_ZERO (&fds);   
+	    FD_SET (STDIN_FILENO, &fds); // we want to read from stdin
+	    /* make sure no one else is trying to use the queue and gather quit signal if any */
+	    inlock->lock();
+		if (!inq->empty()) {
+			quit_string = inq->front();
+			inq->pop_front();
+		} else {
+			quit_string = "";
+		}
+		inlock->unlock();
+		/* figure out if we can read on stdin */
+	    result = select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv);
+	    if(result != -1) { // no error
+	    	if (FD_ISSET(STDIN_FILENO, &fds)) { // check if stdin is ready
+		    	getline(cin,i);
+		    	/* put the user's message in the outq for the Chatter object */
+			    outlock->lock();
+			    outq->push_back(i);
+			    outlock->unlock();
+			}
+		} else {
+			cout << "error " << errno << endl;
+		}
+		/* you can input the code to kill the thread (i) 
+			It's in Japanese so people most likely won't stumble on it by accident 
+			Normally, the main thread will send this code */
+	// } while (quit_string != PROC_EXIT && i != PROC_EXIT); 
+}
+
+void Chatter::_cleanup() {
+	cout << "...quitting" << endl;
+	inlock->lock();
+	inq->push_front(PROC_EXIT); // tell input thread to stop
+	inlock->unlock();
+}
+
+bool Chatter::checkAndReceive(int s) {
+	char chatmsg[MAX_BUF]; // hold received message
+	int recvFail; // return message from recvMsg()
+	/* set up select() variables */
+	fd_set fds; 
+	FD_ZERO (&fds);   
+    FD_SET (s, &fds);
+	/* create timeouts */
+    struct timeval tv;
+    tv.tv_sec = TO; 
+    tv.tv_usec = TO_MS;
+    /* see if socket is ready to read on */
+    int result = select(s + 1, &fds, NULL, NULL, &tv);
+
+    if(result != -1) { // no error
+    	if (FD_ISSET(s, &fds)) { // ready to read
+    		/* receive text */
+			recvFail = recvMsg(chatmsg, MAX_BUF+1, s);
+			if(recvFail > 0){
+				errorCloseSocket("...Connection closed by server", s);
+				return false;
+			} else {
+				// do your printing
+				string cppstring(chatmsg); // create a c++ string from the c string
+
+				/* determine who you're speaking to */
+				if(!got_aitei_handle && aiteiHandle == "") {
+					/* try to find the code */
+					std::size_t pos = cppstring.find(this->code);
+					if(pos != string::npos) {
+						/* extract info after ":" */
+						pos = cppstring.find(":");
+						this->aiteiHandle = cppstring.substr(pos+1, string::npos);
+						this->got_aitei_handle = true;
+						// print
+						cout << "...Speaking with " << aiteiHandle << endl;
+					}
+				} else { // print messages normally
+					/* just in case messages are coming in really fast, make sure they don't
+					   have any \n mixed in by splitting on \n */
+					vector<string> strparts;
+					splitString(cppstring, strparts);
+					for (int i = 0; i < strparts.size(); i++)
+						cout << aiteiHandle << "> " << strparts[i] << endl;
+				}
+				
+			}
+    	}
+    }
+    return true; // all good!
 }
 
 int Chatter::sendAll(int s, const void * msg, string tosend, int *amountToSend) {
-	// figure out how much needs to be sent
-
 	int total = 0; // amount sent
 	int amt;
 	int bytesToSend = *amountToSend;
 	int returnThis = 0;
-	/* search for quit */
+	/* search for quit and get out here! */
 	if(tosend.find("\\quit") != string::npos)
 		return -1;
-	// cout << "trying to send" << endl;
+	/* otherwise, send everything */
 	while(total < *amountToSend){
 		// send
 		amt = send(s, msg+total, bytesToSend, 0);
@@ -143,4 +290,73 @@ int Chatter::sendAll(int s, const void * msg, string tosend, int *amountToSend) 
 	
 	/* return an error or success depending on result */
 	return returnThis;
+}
+
+int Chatter::recvMsg(char * buf, int buf_len, int cnctFD){
+	/* get size of message */
+	int recvFail,
+		amtToRecv = buf_len-1;
+
+	clearString(buf, buf_len);
+
+	recvFail = recvAll(cnctFD, buf, &amtToRecv); // Read the client's message from the socket
+
+	if (recvFail < 0) { // connection closed
+		return -1;
+	}
+	else if (recvFail > 0) { // no data sent
+		return 1;
+	}
+	
+	return 0;
+}
+
+int Chatter::recvAll(int socketFD, void * buf, int * amountToRecv) {
+	int total = 0, // amount received
+		amt,
+		bytesToRecv = *amountToRecv,
+		returnThis = 0;
+	
+	while(total < *amountToRecv){
+		amt = recv(socketFD, buf+total, bytesToRecv, 0);
+		/* get out of loop on send error */
+		if(amt == -1 || amt == 0){
+			if(amt == -1) // error, connection closed
+				returnThis = amt;
+			else
+				returnThis = 1; // no data sent
+			break;
+		}
+
+		total += amt;
+		bytesToRecv -= amt;
+	}
+
+	// figure out how much was received and return
+	*amountToRecv = total;
+	
+	/* return an error or success depending on result */
+	return returnThis;
+}
+
+void Chatter::clearString(char * theString, int size) {
+	memset(theString, '\0', size);
+}
+
+void Chatter::errorCloseSocket(const char *msg, int socketFD) { 
+	cerr << msg << endl;
+	close(socketFD);
+	// exit(1); 
+}
+
+void Chatter::splitString(string str, vector<string> &container) {
+	/* help here: https://stackoverflow.com/questions/8448176/split-a-string-into-an-array-in-c
+				  https://stackoverflow.com/questions/11719538/how-to-use-stringstream-to-separate-comma-separated-strings#11719617 */
+
+	std::istringstream ss(str);
+	string part;
+ 
+    while(std::getline(ss, part, '\n')) { // tell getline to split on \n instead of space 
+    	container.push_back(part);
+    }
 }
