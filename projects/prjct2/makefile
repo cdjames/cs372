@@ -1,28 +1,25 @@
-all: otp_enc_d otp_enc otp_dec_d otp_dec keygen
+OPS = -g 
+# OPS += -lm
+# OPS += -ggdb
+OPS += -Wall
 
-otp_enc_d: utils.o otp_enc_d.o 
-	gcc -g -Wall -o otp_enc_d  utils.o otp_enc_d.o -lm
+OPS_LM = -lm 
+OPS_LM += ${OPS} 
 
-otp_enc: otp_enc.c utils.o
-	gcc -g -Wall -o otp_enc otp_enc.c utils.o -lm
+PROG = ftpserver
 
-otp_enc_d.o: otp_enc_d.c
-	gcc -g -Wall -c otp_enc_d.c
+default: all
 
-otp_dec_d: utils.o otp_dec_d.o 
-	gcc -g -Wall -o otp_dec_d  utils.o otp_dec_d.o -lm
+all: ${PROG}
 
-otp_dec: otp_dec.c utils.o
-	gcc -g -Wall -o otp_dec otp_dec.c utils.o -lm
+${PROG}: utils.o ${PROG}.o 
+	gcc -o ${PROG}  utils.o ${PROG}.o ${OPS_LM}
 
-otp_dec_d.o: otp_dec_d.c
-	gcc -g -Wall -c otp_dec_d.c
+${PROG}.o:
+	gcc -c ${PROG}.c ${OPS}
 
-keygen: keygen.c utils.o
-	gcc -g -Wall -o keygen keygen.c utils.o -lm
-
-utils.o: utils.c utils.h 
-	gcc -g -Wall -c utils.c 
+utils.o: utils.h 
+	gcc -c utils.c  ${OPS}
 
 # encrypt.o: encrypt.c encrypt.h
 # 	gcc -g -Wall -c encrypt.c
@@ -34,5 +31,5 @@ clean:
 	rm *.o
 
 cleanall:
-	rm keygen otp_enc otp_enc_d otp_dec_d otp_dec
+	rm ${PROG}
 	make clean

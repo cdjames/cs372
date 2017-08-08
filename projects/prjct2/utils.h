@@ -15,9 +15,15 @@
 #include <fcntl.h>		// for file manipulation
 #include <sys/wait.h> 	// for wait/waitpid
 #include <netinet/in.h>
+#include <netdb.h>  // for hostent type
+#include <limits.h>
+#include <dirent.h> // for DIR
 
 #ifndef UTILS_H
 #define UTILS_H
+
+#define MAX_BUF_LEN 70000
+#define DEBUG 1
 
 struct Pidkeeper
 {
@@ -110,9 +116,14 @@ void checkText(char * text, int socketFD, char * fname);
 
 /*********************************************************************
 ** Description: 
-** Check for existence of file and exit if not found
+** Check for existence of file; return 0 if not found
 *********************************************************************/
-void checkFile(char * file, int socketFD);
+int checkFile(char * file);
+int readFile(char * fname, char * buffer);
+int readDirectory(char * path, char * buffer);
+int makeConnection(int portNumber);
+int makeDataConnection(int clientFD);
+struct Pidkeeper sendFileInChild();
 
 /*********************************************************************
 ** Description: 
