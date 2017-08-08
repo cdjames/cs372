@@ -503,6 +503,9 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 			int found = checkFile(fname);
 			if(!found) {
 				/* send error message to client */
+				request = 3;
+				sendFail = sendAll(clientFD, &request, &amtToSend);
+
 				sendFail = sendAll(clientFD, ferror_msg, strlen(ferror_msg));
 				sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
 				errorCloseSocketNoExit(": no such file", clientFD);
@@ -539,6 +542,10 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 				close(dataFD);
 			}
 		} else {
+			/* ask for file name by sending a "command" of 2 */
+			request = 3;
+			sendFail = sendAll(clientFD, &request, &amtToSend);
+
 			/* bad command, send error message */
 			sendFail = sendAll(clientFD, bad_cmd_msg, strlen(bad_cmd_msg));
 			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);

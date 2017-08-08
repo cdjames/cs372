@@ -38,7 +38,9 @@ PROC_EXIT = "owaridayotto" # special code to kill input process
 class FtpClient():
 	'''Class to implement connecting to, sending to, receiving from server, and also
 		performing the same functions as a server'''
-	def __init__(self, port=PORT, handle="Anonymous"):
+	def __init__(self, port=PORT, host=HOST, dataport=DATAPORT, cmd="", fname=""):
+		self.cmd = cmd
+		self.fname = fname
 		self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.data_s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.conn = None
@@ -46,26 +48,52 @@ class FtpClient():
 		self.is_client = False
 		self.is_server = False
 		self.port = int(port)
+		self.dataport = int(dataport)
+		self.host = host
 		self.aiteiHandle = ""
-		self.handle = handle
 		self.gotAiteiHandle = False
 		self.handleSent = False
 		self.code = "namae:"
 
 	### Client functions ###
-	def connect(self, h=HOST):
+	def connect(self):
 	    '''Connect to socket as a client'''
 	    try:
 	    	self.s.settimeout(TO)
-	    	self.s.connect((h, self.port))
+	    	self.s.connect((self.host, self.port))
 	    	self.is_client = True
 	    	return True
 	    except Exception, e:
-	    	print("...Unable to connect to socket at IP %s, port %d: error %s" % (h, self.port, e))
-	        print("...Becoming server")
+	    	print("...Unable to connect to socket at IP %s, port %d: error %s" % (self.host, self.port, e))
 	        self.s.close()
 
 	    return False # if you get here there was a failure to connect on any hosts
+
+	def clientAction(self):
+		'''
+			1. send command to server (-l or -g)
+			2. receive an integer
+				- integer 1 means send your dataport
+				- integer 2 means send your fname
+				- integer 3 means error
+			3a. -g, Integer 2:
+				- send fname
+				- receive either 1 or 3
+					1) 
+						- send port
+						- receive "2:file not found" or "..." (contents of file)
+					3) receive again: "2:file not found"
+			3b. -l, Integer 1:
+				- send port
+				- receive "3:could not read directory" or "..." (contents of directory, ready to be printed)
+			3c. Integer 3:
+				- receive "1:commands are -l or -g"
+
+
+		'''
+
+		
+		pass
 
 	def clientLoop(self):
 		'''Loop until the user enters "\quit"; send and receive data '''
@@ -281,7 +309,9 @@ def mainCleanup():
 	p.join() # join the gatherInput thread
 	sys.exit(1)
 
-def printExit(code=1):
+def printExit(msg="", code=1):
+	if msg != "":
+		print msg
 	print USAGE
 	sys.exit(code)
 
@@ -312,27 +342,27 @@ if __name__ == '__main__':
 			cmd = sys.argv[4] # get server port
 			if cmd.lower() == "-g":
 				if len(sys.argv) == 5: 
-					print "Missing file name with option -g"
-					printExit()
+					printExit(msg="Missing file name with option -g")
 				elif len(sys.argv) == 6:
 					fname = sys.argv[5]
 				else:
-					print "Too many options"
-					printExit()
+					printExit(msg="Too many options")
 			elif cmd.lower() == "-l":
 				if len(sys.argv) != 5:
-					print "Too many options"
-					printExit()
+					printExit(msg="Too many options")
 			else:
 				printExit()
 	else:
 		printExit()
 
 	# start the FtpClient object
-	# ch = FtpClient(port=p, handle=getUserName())
-	# if not ch.connect(h): # try to become client
-	# 	print("...There was a problem connecting to the server. Check your Exiting")
-	# 	sys.exit(1)
+	ch = FtpClient(port=sp, host=h, dataport=dp, cmd=cmd, fname=fname)
+	if ch.connect(): # try to become client
+		# do stuff as client
+		pass
+	else:
+		print("...There was a problem connecting to the server. Check IP and port #. Exiting")
+		sys.exit(1)
 
 	# if you get here, you can start to gather input in a new process
 	# p = Process(target=gatherInput, args=(newstdin,in_q)) # read input in new process with copy of standard in
