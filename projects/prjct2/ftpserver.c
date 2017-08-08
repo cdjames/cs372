@@ -24,7 +24,15 @@ const int maxConnections = 5;
 const int hdShakeLen = 7;
 const int maxBufferLen = 70000;
 const char PROG_CODE[] = "otp_enc";
-const char PROG_NAME[] = "otp_enc_d";
+// const char PROG_NAME[] = "ftpserve";
+
+void setTimeout(int cnctFD, int sec, int usec) {
+	struct timeval tv;
+	tv.tv_sec  = sec;  
+	tv.tv_usec = usec;
+	setsockopt( cnctFD, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+	setsockopt( cnctFD, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+}
 
 int main(int argc, char *argv[])
 {
@@ -39,7 +47,7 @@ int main(int argc, char *argv[])
 		establishedConnectionFD, 
 		portNumber;
 	socklen_t sizeOfClientInfo;
-	struct sockaddr_in otp_enc_dAddress, clientAddress;
+	struct sockaddr_in server_address, clientAddress;
 	
 	/* keeping track of pids and connections */
 	int exitSignal = 0,
@@ -59,14 +67,14 @@ int main(int argc, char *argv[])
     FD_ZERO(&read_fds);
 
 	/*Set up the address struct for this process (the otp_enc_d)*/
-	memset((char *)&otp_enc_dAddress, '\0', sizeof(otp_enc_dAddress)); // Clear out the address struct
+	memset((char *)&server_address, '\0', sizeof(server_address)); // Clear out the address struct
 	portNumber = atoi(argv[1]); // Get the port number, convert to an integer from a string
-	otp_enc_dAddress.sin_family = AF_INET; // Create a network-capable socket
-	otp_enc_dAddress.sin_port = htons(portNumber); // Store the port number
-	otp_enc_dAddress.sin_addr.s_addr = INADDR_ANY; // Any address is allowed for connection to this process
+	server_address.sin_family = AF_INET; // Create a network-capable socket
+	server_address.sin_port = htons(portNumber); // Store the port number
+	server_address.sin_addr.s_addr = INADDR_ANY; // Any address is allowed for connection to this process
 
 	// Set up the socket and start listen()
-	listenSocketFD = setUpSocket(&otp_enc_dAddress, maxConnections);
+	listenSocketFD = setUpSocket(&server_address, maxConnections);
 
 	/* add listenSocketFD to master set (for select); set the max fd to be the listener */
 	FD_SET(listenSocketFD, &master);
@@ -99,7 +107,7 @@ int main(int argc, char *argv[])
         	int i;
         	for (i = 0; i <= fdmax; i++)
         	{
-        		if(FD_ISSET(i, &read_fds)) { // we have a connection/data to read
+        		if(FD_ISSET(i, &read_fds)) { // we have a listener to attend to
         			// printf("new connection\n");
         			/* there is a new listener */
         			if(i == listenSocketFD){
@@ -111,14 +119,15 @@ int main(int argc, char *argv[])
 							establishedConnectionFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo); // Accept
 							
 							// 2 Sec Timeout (didn't seem to work)
-							struct timeval tv;
-							tv.tv_sec  = 2;  
-							tv.tv_usec = 0;
-							setsockopt( establishedConnectionFD, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-							setsockopt( establishedConnectionFD, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+							setTimeout(establishedConnectionFD, 2, 0);
+							// struct timeval tv;
+							// tv.tv_sec  = 2;  
+							// tv.tv_usec = 0;
+							// setsockopt( establishedConnectionFD, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+							// setsockopt( establishedConnectionFD, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 							
 							if (establishedConnectionFD < 0) 
-								error("otp_enc_d: ERROR on accept");
+								error("ftpserve: ERROR on accept");
 							/* if no error, add new connection to your set */
 							else {
 								numConnections += 1;
@@ -141,8 +150,8 @@ int main(int argc, char *argv[])
         			/* we have something to read from a client */
         			else {
 	        			// printf("getting data\n");
-	        			/* fork a process with doEncrypt... encrypt here */
-						thePK = doEncryptInChild(i, PROG_CODE, PROG_NAME, hdShakeLen, 0);
+	        			/* fork a process with sendFileInChild; file is sent here */
+						thePK = sendFileInChild(i);
 						pid = thePK.pid;
 						exitSignal = thePK.status;
 						if(pid != 0){
@@ -158,7 +167,7 @@ int main(int argc, char *argv[])
 								if(!FD_ISSET(listenSocketFD, &master)) {
 									// printf("otp_enc_d: resetting the connection\n");
 									/* re-open the socket */
-									listenSocketFD = setUpSocket(&otp_enc_dAddress, maxConnections);
+									listenSocketFD = setUpSocket(&server_address, maxConnections);
 			        				/* add it back to the set and make a new max if necessary */
 									FD_SET(listenSocketFD, &master);
 									if(listenSocketFD > fdmax)

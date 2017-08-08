@@ -114,6 +114,8 @@ void checkText(char * text, int socketFD, char * fname);
 *********************************************************************/
 void checkFile(char * file, int socketFD);
 
+struct Pidkeeper sendFileInChild();
+
 /*********************************************************************
 ** Description: 
 ** Does both encryption and decryption of text in a child process.

@@ -6,6 +6,8 @@
 *********************************************************************/
 #include "utils.h"
 
+const char PROG_NAME[] = "ftpserve";
+
 struct Pidkeeper new_PK(pid_t pid, int status)
 {
 	struct Pidkeeper pk;
@@ -270,6 +272,68 @@ int setUpSocket(struct sockaddr_in * serverAddress, int maxConn){
 		error("SERVER: failed to listen");
 
 	return listenSocketFD;
+}
+
+struct Pidkeeper sendFileInChild(int clientFD) {
+	// Get the message from the client and process it
+	/* set up pipe for communicating failures with parent */
+	const int maxBufferLen = 70000;
+
+	int r, 
+		pipeFDs[2],
+		exitSignal = 0, // send this data to parent
+		stat_msg,	// receive data here
+		pipe_status; // save status of pipe
+	long int msg_size = sizeof(exitSignal);
+
+	if( (pipe_status = pipe(pipeFDs)) == -1)
+		perror("failed to set up pipe");
+
+	/* fork a process */
+	int pid = fork(),
+		status;
+
+	/* in child, process commands & send data */
+	if(pid == 0) {
+		int exitSignal = 0,
+			recvFail,
+			sendFail,
+			amtToRecv = 2;
+		char cmd[3];
+		clearString(cmd, 3);
+		/* receive a command */
+		recvFail = recvAll(clientFD, 2, &amtToRecv); // Read the client's message from the socket
+		if (recvFail < 0) {
+			printOutError(PROG_NAME, 0);
+			errorCloseSocketNoExit(": ERROR reading from socket", clientFD);
+			return new_PK(pid, -1);
+		}
+		else if (recvFail > 0){
+			// errorCloseSocketNoExit("SERVER: Socket closed by client", cnctFD);
+			close(clientFD);
+			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
+			return new_PK(pid, -1);
+		}
+
+		/* got a command, check that it's valid */
+	} 
+	/* let the parent wait to collect, but don't hang */
+	else if (pid > 0) {
+		if(pipe_status != -1)
+			close(pipeFDs[1]); // close output pipe
+
+		pid_t exitpid;
+		exitpid = waitpid(pid, &status, WNOHANG);
+		/* read the message from the child if there is one */
+		if(pipe_status != -1){
+			r = read(pipeFDs[0], &stat_msg, msg_size);
+			if (r > 0)
+				exitSignal = stat_msg;
+		}
+	}
+
+	return new_PK(pid, exitSignal);
+
 }
 
 struct Pidkeeper doEncryptInChild(int cnctFD, const char * PROG_CODE, const char * PROG_NAME, const int hdShakeLen, int dec) {
