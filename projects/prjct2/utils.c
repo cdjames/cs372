@@ -6,7 +6,7 @@
 *********************************************************************/
 #include "utils.h"
 
-const char PROG_NAME[] = "ftpserve";
+const char PROG_NAME[] = "ftpserver";
 
 struct Pidkeeper new_PK(pid_t pid, int status)
 {
@@ -243,12 +243,14 @@ void checkText(char * text, int socketFD, char * fname) {
 	}
 }
 
-void checkFile(char * file, int socketFD){
+int checkFile(char * file){
 	/* create directory, checking for existence first */
 	struct stat checkfor;
 	if (stat(file, &checkfor) == -1) {
-		errorCloseSocket("opt_enc: Could not open file", socketFD);
+		return 0;
 	}
+
+	return 1;
 }
 
 /* opt_enc_d and opt_dec_d specific files */
@@ -274,10 +276,88 @@ int setUpSocket(struct sockaddr_in * serverAddress, int maxConn){
 	return listenSocketFD;
 }
 
+int makeConnection(int portNumber) {
+	int socketFD;
+	struct sockaddr_in serverAddress;
+	struct hostent* serverHostInfo;
+
+	// Set up the server address struct
+	memset((char*)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
+	serverAddress.sin_family = AF_INET; // Create a network-capable socket
+	serverAddress.sin_port = htons(portNumber); // Store the port number
+	serverHostInfo = gethostbyname("localhost"); // Convert the machine name into a special form of address
+	if (serverHostInfo == NULL) { 
+		fprintf(stderr, "%s: ERROR, no such host\n", PROG_NAME); 
+		return -1; 
+	}
+	memcpy((char*)serverHostInfo->h_addr, (char*)&serverAddress.sin_addr.s_addr, serverHostInfo->h_length); // Copy in the address
+
+	// Set up the socket
+	socketFD = socket(AF_INET, SOCK_STREAM, 0); // Create the socket
+	if (socketFD < 0) {
+		fprintf(stderr, "%s: ERROR opening socket\n", PROG_NAME);
+		return -1;
+	}
+	
+	// Connect to server
+	int connected = connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
+	// printf("otp_enc: connected=%d\n", connected);
+	if (connected < 0) { // Connect socket to address
+		fprintf(stderr, "%s: ERROR connecting\n", PROG_NAME);
+		return -1;
+	}
+	
+	return socketFD;
+}
+
+int makeDataConnection(int clientFD) {
+	/* send code 1 to let client know it should send a port */
+	int request = 1,
+		amtToSend = sizeof(request),
+		dataport = 65534,
+		amtToRecv = sizeof(dataport),
+		sendFail = sendAll(clientFD, &request, &amtToSend);
+
+	/* receive port number */
+	int recvFail = recvAll(clientFD, &dataport, &amtToRecv); // Read the client's message from the socket
+	if (recvFail < 0) {
+		return -1;
+	}
+	else if (recvFail > 0){
+		return -2;
+	}
+
+	/* make a data connection */
+	int dataFD = makeConnection(dataport);
+	if(dataFD < 0) {
+		return -3;
+	}
+
+	return dataFD;
+}
+
+int readFile(char * fname, char * buffer) {
+	FILE * file;
+
+	/* open the file and check for errors */
+	file = fopen(fname,"r");
+
+	if (file == NULL)
+		return -1; // could not open file
+
+	/* get plaintext */
+	clearString(buffer, MAX_BUF_LEN+1);
+	if(fgets(buffer, MAX_BUF_LEN, file) == NULL)
+		return -2; // could not read file
+
+	fclose(file);
+
+	return 0;
+}
+
 struct Pidkeeper sendFileInChild(int clientFD) {
 	// Get the message from the client and process it
 	/* set up pipe for communicating failures with parent */
-	const int maxBufferLen = 70000;
 
 	int r, 
 		pipeFDs[2],
@@ -298,11 +378,19 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 		int exitSignal = 0,
 			recvFail,
 			sendFail,
-			amtToRecv = 2;
-		char cmd[3];
+			amtToRecv = 2,
+			request = 0,
+			amtToSend = sizeof(request),
+			dataport = 65534,
+			dataFD;
+		char cmd[3],
+			 fname[NAME_MAX-1],
+			 bad_cmd_msg [] = "1:commands are -l or -g",
+			 ferror_msg [] = "2:file not found",
+			 f_contents[MAX_BUF_LEN+1];
 		clearString(cmd, 3);
 		/* receive a command */
-		recvFail = recvAll(clientFD, 2, &amtToRecv); // Read the client's message from the socket
+		recvFail = recvAll(clientFD, cmd, &amtToRecv); // Read the client's message from the socket
 		if (recvFail < 0) {
 			printOutError(PROG_NAME, 0);
 			errorCloseSocketNoExit(": ERROR reading from socket", clientFD);
@@ -316,6 +404,97 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 		}
 
 		/* got a command, check that it's valid */
+		if(cmd[0] == 'l') {
+			/* send code 1 to let client know it should send a port; get port #; make data connection */
+			dataFD = makeDataConnection(clientFD);
+			if (dataFD == -1) {
+				printOutError(PROG_NAME, 0);
+				errorCloseSocketNoExit(": ERROR reading from socket", clientFD);
+				return new_PK(pid, -1);
+			} else if (dataFD == -2){
+				// errorCloseSocketNoExit("SERVER: Socket closed by client", cnctFD);
+				close(clientFD);
+				sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
+				return new_PK(pid, -1);
+			} else if(dataFD < -3) {
+				printOutError(PROG_NAME, 0);
+				errorCloseSocketNoExit(": ERROR reading from socket", dataFD);
+				close(clientFD);
+				return new_PK(pid, -1);
+			}
+
+			/* compile directory into f_contents */
+			
+			
+			/* send the directory */
+			sendFail = sendAll(dataFD, f_contents, strlen(f_contents));
+
+			/* close the connection */
+			close(dataFD);
+
+		} else if (cmd[0] == 'g') {
+			/* ask for file name by sending a "command" of 2 */
+			request = 2;
+			sendFail = sendAll(clientFD, &request, &amtToSend);
+
+			/* receive file name */
+			clearString(fname, NAME_MAX);
+			recvFail = recvMsg(fname, NAME_MAX, clientFD);
+			if (recvFail < 0) {
+				printOutError(PROG_NAME, 0);
+				errorCloseSocketNoExit(": ERROR reading from socket", clientFD);
+				return new_PK(pid, -1);
+			}
+			else if (recvFail > 0){
+				// errorCloseSocketNoExit("SERVER: Socket closed by client", clientFD);
+				close(clientFD);
+				sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
+				return new_PK(pid, -1);
+			}
+
+			/* check for existence of file  */
+			int found = checkFile(fname);
+			if(!found) {
+				/* send error message to client */
+				sendFail = sendAll(clientFD, ferror_msg, strlen(ferror_msg));
+				errorCloseSocketNoExit(": no such file", clientFD);
+				return new_PK(pid, -1);
+			}
+
+			/* read and send file */
+			int read_err = readFile(fname, f_contents);
+			if(read_err >= 0) { // success
+				/* send the file */
+				/* make data connection */
+				dataFD = makeDataConnection(clientFD);
+				if (dataFD == -1) {
+					printOutError(PROG_NAME, 0);
+					errorCloseSocketNoExit(": ERROR reading from socket", clientFD);
+					return new_PK(pid, -1);
+				} else if (dataFD == -2){
+					// errorCloseSocketNoExit("SERVER: Socket closed by client", cnctFD);
+					close(clientFD);
+					sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
+					return new_PK(pid, -1);
+				} else if(dataFD < -3) {
+					printOutError(PROG_NAME, 0);
+					errorCloseSocketNoExit(": ERROR reading from socket", dataFD);
+					close(clientFD);
+					return new_PK(pid, -1);
+				}
+
+				/* send the file on the data connection */
+				sendFail = sendAll(dataFD, f_contents, strlen(f_contents));
+
+				/* close the connection */
+				close(dataFD);
+			}
+		} else {
+			/* bad command, send error message */
+			sendFail = sendAll(clientFD, bad_cmd_msg, strlen(bad_cmd_msg));
+			errorCloseSocketNoExit(": bad command", clientFD);
+			return new_PK(pid, -1);
+		}
 	} 
 	/* let the parent wait to collect, but don't hang */
 	else if (pid > 0) {
