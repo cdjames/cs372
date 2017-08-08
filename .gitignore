@@ -1,3 +1,7 @@
 *.exe
 *.zip
 *.DS_Store
+*.o
+*.stackdump
+*.exe
+ftpserver
