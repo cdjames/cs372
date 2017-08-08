@@ -23,6 +23,7 @@
 #define UTILS_H
 
 #define MAX_BUF_LEN 70000
+#define DEBUG 1
 
 struct Pidkeeper
 {

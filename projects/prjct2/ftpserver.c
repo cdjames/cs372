@@ -112,7 +112,7 @@ int main(int argc, char *argv[])
 							establishedConnectionFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo); // Accept
 							
 							// 2 Sec Timeout (didn't seem to work)
-							setTimeout(establishedConnectionFD, 2, 0);
+							// setTimeout(establishedConnectionFD, 2, 0);
 							// struct timeval tv;
 							// tv.tv_sec  = 2;  
 							// tv.tv_usec = 0;

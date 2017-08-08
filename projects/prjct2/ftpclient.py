@@ -81,19 +81,27 @@ class FtpClient():
 				- receive either 1 or 3
 					1) 
 						- send port
-						- receive "2:file not found" or "..." (contents of file)
+						- open connection on port and accept connection from server
+						- receive on dataport "2:file not found" or "..." (contents of file)
 					3) receive again: "2:file not found"
 			3b. -l, Integer 1:
 				- send port
-				- receive "3:could not read directory" or "..." (contents of directory, ready to be printed)
+				- open connection on port and accept connection from server
+				- receive on dataport "3:could not read directory" or "..." (contents of directory, ready to be printed)
 			3c. Integer 3:
 				- receive "1:commands are -l or -g"
 
-
 		'''
+		# initial command send
+		try:
+			print self.cmd
+			self.mysend(self.s, self.cmd)
+			# i = self.s.send(self.cmd)
+		except Exception, e:
+			print "couldn't send command to server"
+			sys.exit(1)
 
-		
-		pass
+		self.s.close()
 
 	def clientLoop(self):
 		'''Loop until the user enters "\quit"; send and receive data '''
@@ -128,8 +136,8 @@ class FtpClient():
 				time.sleep(TO)
 			except socket.timeout, e:
 				time.sleep(TO)
-			except SystemExit, e: # user wants to quit, raise from mysend()
-				quit = True
+			# except SystemExit, e: # user wants to quit, raise from mysend()
+			# 	quit = True
 			except Exception, e:
 				print e
 		self._cleanup()
@@ -359,7 +367,7 @@ if __name__ == '__main__':
 	ch = FtpClient(port=sp, host=h, dataport=dp, cmd=cmd, fname=fname)
 	if ch.connect(): # try to become client
 		# do stuff as client
-		pass
+		ch.clientAction()
 	else:
 		print("...There was a problem connecting to the server. Check IP and port #. Exiting")
 		sys.exit(1)

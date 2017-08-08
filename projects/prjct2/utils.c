@@ -86,16 +86,15 @@ int sendMsg(char * text, int cnctFD){
 
 int recvAll(int socketFD, void * buf, int * amountToRecv) {
 	// figure out how much needs to be sent
-
+	printf("in recvAll=%d\n", *amountToRecv);
 	int total = 0; // amount received
 	int amt;
 	int bytesToRecv = *amountToRecv;
 	int returnThis = 0;
 	
 	while(total < *amountToRecv){
-		// send
-
 		amt = recv(socketFD, buf+total, bytesToRecv, 0);
+		printf("amt=%d\n", amt);
 		/* get out of loop on send error */
 		if(amt == -1 || amt == 0){
 			if(amt == -1)
@@ -410,6 +409,9 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 
 	/* in child, process commands & send data */
 	if(pid == 0) {
+		#ifdef DEBUG
+		fprintf(stdout, "client connected\n");
+		#endif
 		int exitSignal = 0,
 			recvFail,
 			sendFail,
@@ -417,15 +419,22 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 			request = 0,
 			amtToSend = sizeof(request),
 			dataFD;
-		char cmd[3],
+		char cmd[512],
 			 fname[NAME_MAX-1],
 			 bad_cmd_msg [] = "1:commands are -l or -g",
 			 ferror_msg [] = "2:file not found",
 			 direrror_msg [] = "3:could not read directory",
 			 f_contents[MAX_BUF_LEN+1];
-		clearString(cmd, 3);
+		clearString(cmd, 512);
+
 		/* receive a command */
-		recvFail = recvAll(clientFD, cmd, &amtToRecv); // Read the client's message from the socket
+		// recvFail = recvAll(clientFD, cmd, 512); // Read the client's message from the socket
+		recvFail = recv(clientFD, cmd, 512, 0); // Read the client's message from the socket
+		#ifdef DEBUG
+		fprintf(stdout, "got this from client: %s, %d\n", cmd, recvFail);
+		printf("%d", recvFail);
+		#endif
+
 		if (recvFail < 0) {
 			printOutError(PROG_NAME, 0);
 			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
@@ -433,7 +442,7 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 			return new_PK(pid, -1);
 		}
 		else if (recvFail > 0){
-			// errorCloseSocketNoExit("SERVER: Socket closed by client", cnctFD);
+			errorCloseSocketNoExit("SERVER: Socket closed by client", clientFD);
 			close(clientFD);
 			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
 			return new_PK(pid, -1);
