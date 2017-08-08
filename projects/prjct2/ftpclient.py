@@ -20,6 +20,7 @@ from select import select
 import os
 import socket
 import signal
+from struct import *
 
 # global variables
 USAGE = "python ftpclient.py [-help] [<SERVER_HOST> <SERVER_PORT> <DATA_PORT> <COMMAND> [<FILENAME>]]\n" # how to use
@@ -102,12 +103,17 @@ class FtpClient():
 
 		# receive an integer
 		try:
-			code = self.s.recv(4)
-			print "code="+code
+			code = unpack("!i", self.s.recv(4))[0] # returns 
+			print "code="+str(code)
 		except socket.error, e: # socket is closed
 			self.printAndExit("couldn't receive from server")
 
-		# if code == "1":
+		if code == 1:
+			print str(self.dataport)
+			self.mysend(self.s, pack("!i", self.dataport) )
+			# start up the server
+			# if (!startServer()):
+
 		self.s.close()
 
 	def printAndExit(self, msg=""):

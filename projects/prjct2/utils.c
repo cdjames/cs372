@@ -94,7 +94,7 @@ int recvAll(int socketFD, void * buf, int * amountToRecv) {
 	
 	while(total < *amountToRecv){
 		amt = recv(socketFD, buf+total, bytesToRecv, 0);
-		printf("amt=%d\n", amt);
+		printf("amountToRecv=%d\n", *amountToRecv);
 		/* get out of loop on send error */
 		if(amt == -1 || amt == 0){
 			if(amt == -1)
@@ -103,7 +103,8 @@ int recvAll(int socketFD, void * buf, int * amountToRecv) {
 				returnThis = 1;
 			break;
 		}
-
+		printf("got here\n");
+		printf("bytesToRecv=%d\n", bytesToRecv);
 		total += amt;
 		bytesToRecv -= amt;
 	}
@@ -112,6 +113,7 @@ int recvAll(int socketFD, void * buf, int * amountToRecv) {
 	*amountToRecv = total;
 	
 	/* return an error or success depending on result */
+	printf("buffer=%d\n", ntohl(buf));
 	return returnThis;
 }
 
@@ -320,8 +322,9 @@ int makeDataConnection(int clientFD) {
 	char code[] = "1";
 	printf("send %d bytes\n", strlen(code));
 	// int sendFail = sendAll(clientFD, code, strlen(code)+1);
-	int sendFail = send(clientFD, code, strlen(code), 0);
-	// int sendFail = sendAll(clientFD, &request, &amtToSend);
+	// int sendFail = send(clientFD, code, strlen(code), 0);
+	int n_request = htonl(request);
+	int sendFail = sendAll(clientFD, &n_request, &amtToSend);
 
 	/* receive port number */
 	int recvFail = recvAll(clientFD, &dataport, &amtToRecv); // Read the client's message from the socket
@@ -331,7 +334,9 @@ int makeDataConnection(int clientFD) {
 	else if (recvFail > 0){
 		return -2;
 	}
-
+	long l_dataport = ntohl(dataport);
+	dataport = (int) l_dataport;
+	printf("dataport=%d\n", dataport);
 	/* make a data connection */
 	int dataFD = makeConnection(dataport);
 	if(dataFD < 0) {
