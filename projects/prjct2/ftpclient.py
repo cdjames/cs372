@@ -97,11 +97,23 @@ class FtpClient():
 			print self.cmd
 			self.mysend(self.s, self.cmd)
 			# i = self.s.send(self.cmd)
-		except Exception, e:
-			print "couldn't send command to server"
-			sys.exit(1)
+		except socket.error, e:
+			self.printAndExit("couldn't send command to server")
 
+		# receive an integer
+		try:
+			code = self.s.recv(4)
+			print "code="+code
+		except socket.error, e: # socket is closed
+			self.printAndExit("couldn't receive from server")
+
+		# if code == "1":
 		self.s.close()
+
+	def printAndExit(self, msg=""):
+		print msg
+		self.s.close()
+		sys.exit(1)
 
 	def clientLoop(self):
 		'''Loop until the user enters "\quit"; send and receive data '''
@@ -201,7 +213,7 @@ class FtpClient():
 			print "...accepting new clients"
 			self.conn, self.addr = self.data_s.accept()
 			# after connecting, send your handle
-			self.sendHandle(self.conn)
+			# self.sendHandle(self.conn)
 		except socket.error, e:
 			print "...socket closed, exiting"
 			sys.exit(1)

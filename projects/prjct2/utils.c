@@ -314,9 +314,14 @@ int makeDataConnection(int clientFD) {
 	int request = 1,
 		amtToSend = sizeof(request),
 		dataport = 65534,
-		amtToRecv = sizeof(dataport),
+		amtToRecv = sizeof(dataport);
 		/* send a request for the port number */
-		sendFail = sendAll(clientFD, &request, &amtToSend);
+	// printf("send %d bytes\n", amtToSend);
+	char code[] = "1";
+	printf("send %d bytes\n", strlen(code));
+	// int sendFail = sendAll(clientFD, code, strlen(code)+1);
+	int sendFail = send(clientFD, code, strlen(code), 0);
+	// int sendFail = sendAll(clientFD, &request, &amtToSend);
 
 	/* receive port number */
 	int recvFail = recvAll(clientFD, &dataport, &amtToRecv); // Read the client's message from the socket
@@ -441,7 +446,7 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 			errorCloseSocketNoExit(": ERROR reading from socket", clientFD);
 			return new_PK(pid, -1);
 		}
-		else if (recvFail > 0){
+		else if (recvFail == 0){
 			errorCloseSocketNoExit("SERVER: Socket closed by client", clientFD);
 			close(clientFD);
 			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
@@ -449,7 +454,7 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 		}
 
 		/* got a command, check that it's valid */
-		if(cmd[0] == 'l') {
+		if(cmd[1] == 'l') {
 			/* send code 1 to let client know it should send a port; get port #; make data connection */
 			dataFD = makeDataConnection(clientFD);
 			if (dataFD == -1) {
