@@ -1,12 +1,12 @@
 /*********************************************************************
 ** Author: Collin James
-** Date: 12/1/16
+** Date: 8/7/17
 ** Description: Open a listening socket, then do the following:
-1. accept connections from client programs (otp_enc)
-2. get a text file
-3. get a key
-4. encrypt the text file using the key
-5. send the encrypted file back with newline appended
+1. accept connections from client programs (ftpclient.py)
+2. accept commands from client (-l and -g)
+3. validate commands
+4. in new process, make new connection with client (data connection)
+5. send requested data (file list or file contents)
 *********************************************************************/
 
 #include <stdio.h>
