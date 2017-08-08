@@ -23,16 +23,9 @@
 const int maxConnections = 5;
 const int hdShakeLen = 7;
 const int maxBufferLen = 70000;
-const char PROG_CODE[] = "otp_enc";
 // const char PROG_NAME[] = "ftpserve";
 
-void setTimeout(int cnctFD, int sec, int usec) {
-	struct timeval tv;
-	tv.tv_sec  = sec;  
-	tv.tv_usec = usec;
-	setsockopt( cnctFD, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-	setsockopt( cnctFD, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-}
+void setTimeout(int cnctFD, int sec, int usec);
 
 int main(int argc, char *argv[])
 {
@@ -99,7 +92,7 @@ int main(int argc, char *argv[])
 
 		/* do your select and make sure there are no errors */
 		if (select(fdmax+1, &read_fds, NULL, NULL, NULL) == -1) {
-            printOutError("otp_enc_d: select failed", 1);
+            printOutError("ftpserver: select failed", 1);
         }
         else { // no errors, look for new connections or data
         	
@@ -127,7 +120,7 @@ int main(int argc, char *argv[])
 							// setsockopt( establishedConnectionFD, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 							
 							if (establishedConnectionFD < 0) 
-								error("ftpserve: ERROR on accept");
+								error("ftpserver: ERROR on accept");
 							/* if no error, add new connection to your set */
 							else {
 								numConnections += 1;
@@ -154,7 +147,7 @@ int main(int argc, char *argv[])
 						thePK = sendFileInChild(i);
 						pid = thePK.pid;
 						exitSignal = thePK.status;
-						if(pid != 0){
+						if(pid > 0) { // i.e. the parent process has returned
 							// printf("exitSignal = %d\n", exitSignal);
 
 							/* remove the connection from the master set and decrement connections */
@@ -175,6 +168,12 @@ int main(int argc, char *argv[])
 								}
 							}
 							wpid = waitpid(pid, &status, WNOHANG);
+						} else if (pid == 0) {
+							if (exitSignal == -1) {
+								perror("there was an error in sendFileInChild");
+							}
+						} else if (pid < 0) {
+							perror("could not fork process in sendFileInChild");
 						}
 	        		}
         		} // END FD_ISSET if	
@@ -194,4 +193,13 @@ int main(int argc, char *argv[])
 
 	return 0; 
 }
+
+void setTimeout(int cnctFD, int sec, int usec) {
+	struct timeval tv;
+	tv.tv_sec  = sec;  
+	tv.tv_usec = usec;
+	setsockopt( cnctFD, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+	setsockopt( cnctFD, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+}
+
 

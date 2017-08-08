@@ -316,6 +316,7 @@ int makeDataConnection(int clientFD) {
 		amtToSend = sizeof(request),
 		dataport = 65534,
 		amtToRecv = sizeof(dataport),
+		/* send a request for the port number */
 		sendFail = sendAll(clientFD, &request, &amtToSend);
 
 	/* receive port number */
@@ -360,11 +361,14 @@ int readDirectory(char * path, char * buffer) {
 		and here: https://stackoverflow.com/questions/11531245/reading-directories-using-readdir-r#27164624
 	*/
 	DIR * dirname = opendir(path);
+	if(dirname == NULL) // open error
+		return 1;
+
 	struct dirent *dir_entry = NULL; // for storing directory entry
 	int first_run = 1;
 	int len = 0; // track how many bytes you have read; keep this under the max buffer length
 	clearString(buffer, strlen(buffer));
-
+	int bef_errno = errno;
 	while( ( dir_entry = readdir(dirname) ) != NULL && len < MAX_BUF_LEN) {
 		if(strcmp(dir_entry->d_name, ".") != 0 && strcmp(dir_entry->d_name, ".") != 0) { // don't append . and ..
 			/* append the string to the end of the buffer */
@@ -378,6 +382,8 @@ int readDirectory(char * path, char * buffer) {
 			len += strlen(dir_entry->d_name)+1;
 		}
 	}
+	if(dir_entry == NULL && bef_errno != errno) // there was a read error as errno has been changed
+		return 1;
 
 	return 0;
 }
@@ -393,8 +399,10 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 		pipe_status; // save status of pipe
 	long int msg_size = sizeof(exitSignal);
 
-	if( (pipe_status = pipe(pipeFDs)) == -1)
+	if( (pipe_status = pipe(pipeFDs)) == -1) {
 		perror("failed to set up pipe");
+		return new_PK(-1, -1); // send -1 to represent no pipe
+	}
 
 	/* fork a process */
 	int pid = fork(),
@@ -408,18 +416,19 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 			amtToRecv = 2,
 			request = 0,
 			amtToSend = sizeof(request),
-			dataport = 65534,
 			dataFD;
 		char cmd[3],
 			 fname[NAME_MAX-1],
 			 bad_cmd_msg [] = "1:commands are -l or -g",
 			 ferror_msg [] = "2:file not found",
+			 direrror_msg [] = "3:could not read directory",
 			 f_contents[MAX_BUF_LEN+1];
 		clearString(cmd, 3);
 		/* receive a command */
 		recvFail = recvAll(clientFD, cmd, &amtToRecv); // Read the client's message from the socket
 		if (recvFail < 0) {
 			printOutError(PROG_NAME, 0);
+			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
 			errorCloseSocketNoExit(": ERROR reading from socket", clientFD);
 			return new_PK(pid, -1);
 		}
@@ -436,6 +445,7 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 			dataFD = makeDataConnection(clientFD);
 			if (dataFD == -1) {
 				printOutError(PROG_NAME, 0);
+				sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
 				errorCloseSocketNoExit(": ERROR reading from socket", clientFD);
 				return new_PK(pid, -1);
 			} else if (dataFD == -2){
@@ -445,13 +455,22 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 				return new_PK(pid, -1);
 			} else if(dataFD < -3) {
 				printOutError(PROG_NAME, 0);
+				sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
 				errorCloseSocketNoExit(": ERROR reading from socket", dataFD);
 				close(clientFD);
 				return new_PK(pid, -1);
 			}
 
 			/* compile directory into f_contents */
-
+			int read_fail = readDirectory(".", f_contents);
+			if(read_fail) {
+				sendFail = sendAll(clientFD, direrror_msg, strlen(direrror_msg));
+				printOutError(PROG_NAME, 0);
+				sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
+				errorCloseSocketNoExit(": couldn't read directory", dataFD);
+				close(clientFD);
+				return new_PK(pid, -1);
+			}
 
 			/* send the directory */
 			sendFail = sendAll(dataFD, f_contents, strlen(f_contents));
@@ -469,6 +488,7 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 			recvFail = recvMsg(fname, NAME_MAX, clientFD);
 			if (recvFail < 0) {
 				printOutError(PROG_NAME, 0);
+				sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
 				errorCloseSocketNoExit(": ERROR reading from socket", clientFD);
 				return new_PK(pid, -1);
 			}
@@ -484,6 +504,7 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 			if(!found) {
 				/* send error message to client */
 				sendFail = sendAll(clientFD, ferror_msg, strlen(ferror_msg));
+				sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
 				errorCloseSocketNoExit(": no such file", clientFD);
 				return new_PK(pid, -1);
 			}
@@ -495,6 +516,7 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 				dataFD = makeDataConnection(clientFD);
 				if (dataFD == -1) {
 					printOutError(PROG_NAME, 0);
+					sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
 					errorCloseSocketNoExit(": ERROR reading from socket", clientFD);
 					return new_PK(pid, -1);
 				} else if (dataFD == -2){
@@ -504,6 +526,7 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 					return new_PK(pid, -1);
 				} else if(dataFD < -3) {
 					printOutError(PROG_NAME, 0);
+					sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
 					errorCloseSocketNoExit(": ERROR reading from socket", dataFD);
 					close(clientFD);
 					return new_PK(pid, -1);
@@ -518,9 +541,17 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 		} else {
 			/* bad command, send error message */
 			sendFail = sendAll(clientFD, bad_cmd_msg, strlen(bad_cmd_msg));
+			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
 			errorCloseSocketNoExit(": bad command", clientFD);
 			return new_PK(pid, -1);
 		}
+
+		close(clientFD);
+		/* send error status message to parent, i.e. 1 (sending int disguised as void *) 
+		you will never get to this point if exec occurs, and output pipe will be closed
+		on exec, causing read to receive 0 */
+		if(pipe_status != -1 && exitSignal == 1)	
+			write(pipeFDs[1], &exitSignal, msg_size);
 	} 
 	/* let the parent wait to collect, but don't hang */
 	else if (pid > 0) {
@@ -565,7 +596,7 @@ struct Pidkeeper doEncryptInChild(int cnctFD, const char * PROG_CODE, const char
 	if(pid == 0) {
 		if(pipe_status != -1){
 			close(pipeFDs[0]); // close input pipe
-			fcntl(pipeFDs[1], F_SETFD, FD_CLOEXEC); // close output pipe on exec
+			// fcntl(pipeFDs[1], F_SETFD, FD_CLOEXEC); // close output pipe on exec (NOT doing exec!)
 		}
 
 		char hdShakeBuffer[hdShakeLen+1];
@@ -617,6 +648,7 @@ struct Pidkeeper doEncryptInChild(int cnctFD, const char * PROG_CODE, const char
 		if (recvFail < 0) {
 			printOutError(PROG_NAME, 0);
 			errorCloseSocketNoExit(": ERROR reading from socket", cnctFD);
+			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
 			return new_PK(pid, -1);
 		}
 		else if (recvFail > 0){
@@ -632,6 +664,7 @@ struct Pidkeeper doEncryptInChild(int cnctFD, const char * PROG_CODE, const char
 		if (recvFail < 0) {
 			// errorCloseSocketNoExit("SERVER: ERROR reading from socket", cnctFD);
 			close(cnctFD);
+			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
 			return new_PK(pid, -1);
 		}
 		else if (recvFail > 0){
@@ -654,6 +687,7 @@ struct Pidkeeper doEncryptInChild(int cnctFD, const char * PROG_CODE, const char
 		sendFail = sendMsg(encryptText, cnctFD); // Write to the server
 		if (sendFail < 0) {
 			printOutError(PROG_NAME, 0);
+			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
 			errorCloseSocketNoExit(": ERROR writing encrypted text to socket", cnctFD);
 			return new_PK(pid, -1);
 		}
@@ -661,12 +695,12 @@ struct Pidkeeper doEncryptInChild(int cnctFD, const char * PROG_CODE, const char
 		/* Close the existing socket which is connected to the client */
 		close(cnctFD); // 
 
-		/* send error status message to parent, i.e. 1 (sending int disguised as void *) 
-			you will never get to this point if exec occurs, and output pipe will be closed
-			on exec, causing read to receive 0 */
-		if(pipe_status != -1 && exitSignal == 1)	
+		/* send error status message of 0 (no error) to parent */
+		if(pipe_status != -1){
+			exitSignal = 0;
 			write(pipeFDs[1], &exitSignal, msg_size);
-		// printf("from doEncrypt child, exitSignal = %d\n", exitSignal);
+			close(pipeFDs[1]);
+		}
 	} 
 	/* let the parent wait to collect, but don't hang */
 	else if (pid > 0) {
@@ -690,6 +724,7 @@ void sendErrorToParent(int pipe_status, int pipeFD, long int msg_size){
 	if(pipe_status != -1){
 		int exitSignal = 1;	
 		write(pipeFD, &exitSignal, msg_size);
+		close(pipeFD);
 	}
 }
 
