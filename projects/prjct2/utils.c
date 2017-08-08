@@ -355,6 +355,33 @@ int readFile(char * fname, char * buffer) {
 	return 0;
 }
 
+int readDirectory(char * path, char * buffer) {
+	/* help here: https://stackoverflow.com/questions/612097/how-can-i-get-the-list-of-files-in-a-directory-using-c-or-c#612176 
+		and here: https://stackoverflow.com/questions/11531245/reading-directories-using-readdir-r#27164624
+	*/
+	DIR * dirname = opendir(path);
+	struct dirent *dir_entry = NULL; // for storing directory entry
+	int first_run = 1;
+	int len = 0; // track how many bytes you have read; keep this under the max buffer length
+	clearString(buffer, strlen(buffer));
+
+	while( ( dir_entry = readdir(dirname) ) != NULL && len < MAX_BUF_LEN) {
+		if(strcmp(dir_entry->d_name, ".") != 0 && strcmp(dir_entry->d_name, ".") != 0) { // don't append . and ..
+			/* append the string to the end of the buffer */
+			if(first_run) {
+				strcpy(buffer, dir_entry->d_name);
+			}
+			else {
+				strcat(buffer, dir_entry->d_name);
+			}
+			strcat(buffer, "\n");
+			len += strlen(dir_entry->d_name)+1;
+		}
+	}
+
+	return 0;
+}
+
 struct Pidkeeper sendFileInChild(int clientFD) {
 	// Get the message from the client and process it
 	/* set up pipe for communicating failures with parent */
@@ -424,8 +451,8 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 			}
 
 			/* compile directory into f_contents */
-			
-			
+
+
 			/* send the directory */
 			sendFail = sendAll(dataFD, f_contents, strlen(f_contents));
 
@@ -461,10 +488,9 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 				return new_PK(pid, -1);
 			}
 
-			/* read and send file */
+			/* read the file */
 			int read_err = readFile(fname, f_contents);
-			if(read_err >= 0) { // success
-				/* send the file */
+			if(read_err >= 0) { // success, try to make data connection
 				/* make data connection */
 				dataFD = makeDataConnection(clientFD);
 				if (dataFD == -1) {

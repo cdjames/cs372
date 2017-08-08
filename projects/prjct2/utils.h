@@ -17,6 +17,7 @@
 #include <netinet/in.h>
 #include <netdb.h>  // for hostent type
 #include <limits.h>
+#include <dirent.h> // for DIR
 
 #ifndef UTILS_H
 #define UTILS_H
@@ -118,6 +119,7 @@ void checkText(char * text, int socketFD, char * fname);
 *********************************************************************/
 int checkFile(char * file);
 int readFile(char * fname, char * buffer);
+int readDirectory(char * path, char * buffer);
 int makeConnection(int portNumber);
 int makeDataConnection(int clientFD);
 struct Pidkeeper sendFileInChild();
