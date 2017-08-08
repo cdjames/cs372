@@ -135,7 +135,7 @@ struct Pidkeeper sendFileInChild();
 ** hdShakeLen represents the length of the incoming handshake string
 ** dec: 0 means encrypt; 1 means decrypt
 *********************************************************************/
-struct Pidkeeper doEncryptInChild(int cnctFD, const char * PROG_CODE, const char * PROG_NAME, const int hdShakeLen, int dec);
+// struct Pidkeeper doEncryptInChild(int cnctFD, const char * PROG_CODE, const char * PROG_NAME, const int hdShakeLen, int dec);
 
 /*********************************************************************
 ** Description: 
@@ -165,6 +165,6 @@ int mod (int x, int y);
 ** the chars are self-explanatory
 ** dec: 0=encrypt, 1=decrypt
 *********************************************************************/
-void encrypt(char * instring, char * keystring, char * outstring, int dec);
+// void encrypt(char * instring, char * keystring, char * outstring, int dec);
 
 #endif

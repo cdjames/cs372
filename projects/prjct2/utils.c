@@ -419,17 +419,17 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 			request = 0,
 			amtToSend = sizeof(request),
 			dataFD;
-		char cmd[512],
+		char cmd[3],
 			 fname[NAME_MAX-1],
 			 bad_cmd_msg [] = "1:commands are -l or -g",
 			 ferror_msg [] = "2:file not found",
 			 direrror_msg [] = "3:could not read directory",
 			 f_contents[MAX_BUF_LEN+1];
-		clearString(cmd, 512);
+		clearString(cmd, 3);
 
 		/* receive a command */
 		// recvFail = recvAll(clientFD, cmd, 512); // Read the client's message from the socket
-		recvFail = recv(clientFD, cmd, 512, 0); // Read the client's message from the socket
+		recvFail = recv(clientFD, cmd, 2, 0); // Read the client's message from the socket
 		#ifdef DEBUG
 		fprintf(stdout, "got this from client: %s, %d\n", cmd, recvFail);
 		printf("%d", recvFail);
@@ -588,153 +588,153 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 
 }
 
-struct Pidkeeper doEncryptInChild(int cnctFD, const char * PROG_CODE, const char * PROG_NAME, const int hdShakeLen, int dec) {
-	// Get the message from the client and process it
-	/* set up pipe for communicating failures with parent */
-	const int maxBufferLen = 70000;
+// struct Pidkeeper doEncryptInChild(int cnctFD, const char * PROG_CODE, const char * PROG_NAME, const int hdShakeLen, int dec) {
+// 	// Get the message from the client and process it
+// 	/* set up pipe for communicating failures with parent */
+// 	const int maxBufferLen = 70000;
 
-	int r, 
-		pipeFDs[2],
-		exitSignal = 0, // send this data to parent
-		stat_msg,	// receive data here
-		pipe_status; // save status of pipe
-	long int msg_size = sizeof(exitSignal);
+// 	int r, 
+// 		pipeFDs[2],
+// 		exitSignal = 0, // send this data to parent
+// 		stat_msg,	// receive data here
+// 		pipe_status; // save status of pipe
+// 	long int msg_size = sizeof(exitSignal);
 
-	if( (pipe_status = pipe(pipeFDs)) == -1)
-		perror("failed to set up pipe");
+// 	if( (pipe_status = pipe(pipeFDs)) == -1)
+// 		perror("failed to set up pipe");
 
-	/* fork a process */
-	int pid = fork(),
-		status;
-	// printf("connection ID is %d\n", cnctFD);
+// 	/* fork a process */
+// 	int pid = fork(),
+// 		status;
+// 	// printf("connection ID is %d\n", cnctFD);
 
-	/* in child, do the encryption */
-	if(pid == 0) {
-		if(pipe_status != -1){
-			close(pipeFDs[0]); // close input pipe
-			// fcntl(pipeFDs[1], F_SETFD, FD_CLOEXEC); // close output pipe on exec (NOT doing exec!)
-		}
+// 	/* in child, do the encryption */
+// 	if(pid == 0) {
+// 		if(pipe_status != -1){
+// 			close(pipeFDs[0]); // close input pipe
+// 			// fcntl(pipeFDs[1], F_SETFD, FD_CLOEXEC); // close output pipe on exec (NOT doing exec!)
+// 		}
 
-		char hdShakeBuffer[hdShakeLen+1];
-		char ptBuffer[maxBufferLen+1];
-		char keyBuffer[maxBufferLen+1];
-		char encryptText[maxBufferLen+1];
-		int exitSignal = 0,
-			recvFail,
-			sendFail,
-			amtToRecv;
+// 		char hdShakeBuffer[hdShakeLen+1];
+// 		char ptBuffer[maxBufferLen+1];
+// 		char keyBuffer[maxBufferLen+1];
+// 		char encryptText[maxBufferLen+1];
+// 		int exitSignal = 0,
+// 			recvFail,
+// 			sendFail,
+// 			amtToRecv;
 
-		/* read initial handshake message (opt_enc) */
-		memset(hdShakeBuffer, '\0', hdShakeLen+1);
-		amtToRecv = hdShakeLen;
-		// printf("SERVER: receiving handshake\n");
-		recvFail = recvAll(cnctFD, hdShakeBuffer, &amtToRecv); // Read the client's message from the socket
-		if (recvFail < 0) {
-			printOutError(PROG_NAME, 0);
-			errorCloseSocketNoExit(": ERROR reading from socket", cnctFD);
-			return new_PK(pid, -1);
-		}
-		else if (recvFail > 0){
-			// errorCloseSocketNoExit("SERVER: Socket closed by client", cnctFD);
-			close(cnctFD);
-			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
-			return new_PK(pid, -1);
-		}
-		// printf("SERVER: handshake = %s\n", hdShakeBuffer);
+// 		/* read initial handshake message (opt_enc) */
+// 		memset(hdShakeBuffer, '\0', hdShakeLen+1);
+// 		amtToRecv = hdShakeLen;
+// 		// printf("SERVER: receiving handshake\n");
+// 		recvFail = recvAll(cnctFD, hdShakeBuffer, &amtToRecv); // Read the client's message from the socket
+// 		if (recvFail < 0) {
+// 			printOutError(PROG_NAME, 0);
+// 			errorCloseSocketNoExit(": ERROR reading from socket", cnctFD);
+// 			return new_PK(pid, -1);
+// 		}
+// 		else if (recvFail > 0){
+// 			// errorCloseSocketNoExit("SERVER: Socket closed by client", cnctFD);
+// 			close(cnctFD);
+// 			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
+// 			return new_PK(pid, -1);
+// 		}
+// 		// printf("SERVER: handshake = %s\n", hdShakeBuffer);
 
-		/* determine if correct program is connecting */
-		int accepted = 0,
-			amtToSend = sizeof(accepted);
+// 		/* determine if correct program is connecting */
+// 		int accepted = 0,
+// 			amtToSend = sizeof(accepted);
 		
-		if(strcmp(hdShakeBuffer, PROG_CODE) == 0)
-			accepted = 1; // accept the server
+// 		if(strcmp(hdShakeBuffer, PROG_CODE) == 0)
+// 			accepted = 1; // accept the server
 
-		/* send a code accepting or denying the connection */
-		sendFail = sendAll(cnctFD, &accepted, &amtToSend);
-		if (!accepted) {
-			// printOutError(PROG_NAME, 0);
-			// errorCloseSocketNoExit(": Unrecognized connecting program", cnctFD);
-			close(cnctFD); // error in client
-			return new_PK(pid, -1);
-		}
+// 		/* send a code accepting or denying the connection */
+// 		sendFail = sendAll(cnctFD, &accepted, &amtToSend);
+// 		if (!accepted) {
+// 			// printOutError(PROG_NAME, 0);
+// 			// errorCloseSocketNoExit(": Unrecognized connecting program", cnctFD);
+// 			close(cnctFD); // error in client
+// 			return new_PK(pid, -1);
+// 		}
 		
-		/* correct program connected; read the plaintext message*/
-		memset(ptBuffer, '\0', maxBufferLen+1);
-		recvFail = recvMsg(ptBuffer, maxBufferLen+1, cnctFD);
-		if (recvFail < 0) {
-			printOutError(PROG_NAME, 0);
-			errorCloseSocketNoExit(": ERROR reading from socket", cnctFD);
-			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
-			return new_PK(pid, -1);
-		}
-		else if (recvFail > 0){
-			// errorCloseSocketNoExit("SERVER: Socket closed by client", cnctFD);
-			close(cnctFD);
-			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
-			return new_PK(pid, -1);
-		}
+// 		/* correct program connected; read the plaintext message*/
+// 		memset(ptBuffer, '\0', maxBufferLen+1);
+// 		recvFail = recvMsg(ptBuffer, maxBufferLen+1, cnctFD);
+// 		if (recvFail < 0) {
+// 			printOutError(PROG_NAME, 0);
+// 			errorCloseSocketNoExit(": ERROR reading from socket", cnctFD);
+// 			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
+// 			return new_PK(pid, -1);
+// 		}
+// 		else if (recvFail > 0){
+// 			// errorCloseSocketNoExit("SERVER: Socket closed by client", cnctFD);
+// 			close(cnctFD);
+// 			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
+// 			return new_PK(pid, -1);
+// 		}
 
-		/* read the key */
-		memset(keyBuffer, '\0', maxBufferLen+1);
-		recvFail = recvMsg(keyBuffer, maxBufferLen+1, cnctFD);
-		if (recvFail < 0) {
-			// errorCloseSocketNoExit("SERVER: ERROR reading from socket", cnctFD);
-			close(cnctFD);
-			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
-			return new_PK(pid, -1);
-		}
-		else if (recvFail > 0){
-			// errorCloseSocketNoExit("SERVER: Socket closed by client", cnctFD);
-			close(cnctFD);
-			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
-			return new_PK(pid, -1);
-		}
-		// printf("SERVER: read: %s\n", keyBuffer);
+// 		/* read the key */
+// 		memset(keyBuffer, '\0', maxBufferLen+1);
+// 		recvFail = recvMsg(keyBuffer, maxBufferLen+1, cnctFD);
+// 		if (recvFail < 0) {
+// 			// errorCloseSocketNoExit("SERVER: ERROR reading from socket", cnctFD);
+// 			close(cnctFD);
+// 			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
+// 			return new_PK(pid, -1);
+// 		}
+// 		else if (recvFail > 0){
+// 			// errorCloseSocketNoExit("SERVER: Socket closed by client", cnctFD);
+// 			close(cnctFD);
+// 			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
+// 			return new_PK(pid, -1);
+// 		}
+// 		// printf("SERVER: read: %s\n", keyBuffer);
 
-		/* do the encryption (dec=0) or decryption(dec=1) */
-		memset(encryptText, '\0', maxBufferLen+1);
+// 		/* do the encryption (dec=0) or decryption(dec=1) */
+// 		memset(encryptText, '\0', maxBufferLen+1);
 		
-		encrypt(ptBuffer, keyBuffer, encryptText, dec);
-		/* add \n to back of encrypted text */
-		encryptText[strlen(encryptText)] = '\n';
-		// printf("encrypted text = %s\n", encryptText);
+// 		encrypt(ptBuffer, keyBuffer, encryptText, dec);
+// 		/* add \n to back of encrypted text */
+// 		encryptText[strlen(encryptText)] = '\n';
+// 		// printf("encrypted text = %s\n", encryptText);
 
-		/* send the encrypted text back to the client */
-		sendFail = sendMsg(encryptText, cnctFD); // Write to the server
-		if (sendFail < 0) {
-			printOutError(PROG_NAME, 0);
-			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
-			errorCloseSocketNoExit(": ERROR writing encrypted text to socket", cnctFD);
-			return new_PK(pid, -1);
-		}
+// 		/* send the encrypted text back to the client */
+// 		sendFail = sendMsg(encryptText, cnctFD); // Write to the server
+// 		if (sendFail < 0) {
+// 			printOutError(PROG_NAME, 0);
+// 			sendErrorToParent(pipe_status, pipeFDs[1], msg_size);
+// 			errorCloseSocketNoExit(": ERROR writing encrypted text to socket", cnctFD);
+// 			return new_PK(pid, -1);
+// 		}
 
-		/* Close the existing socket which is connected to the client */
-		close(cnctFD); // 
+// 		/* Close the existing socket which is connected to the client */
+// 		close(cnctFD); // 
 
-		/* send error status message of 0 (no error) to parent */
-		if(pipe_status != -1){
-			exitSignal = 0;
-			write(pipeFDs[1], &exitSignal, msg_size);
-			close(pipeFDs[1]);
-		}
-	} 
-	/* let the parent wait to collect, but don't hang */
-	else if (pid > 0) {
-		if(pipe_status != -1)
-			close(pipeFDs[1]); // close output pipe
+// 		/* send error status message of 0 (no error) to parent */
+// 		if(pipe_status != -1){
+// 			exitSignal = 0;
+// 			write(pipeFDs[1], &exitSignal, msg_size);
+// 			close(pipeFDs[1]);
+// 		}
+// 	} 
+// 	/* let the parent wait to collect, but don't hang */
+// 	else if (pid > 0) {
+// 		if(pipe_status != -1)
+// 			close(pipeFDs[1]); // close output pipe
 
-		pid_t exitpid;
-		exitpid = waitpid(pid, &status, WNOHANG);
-		/* read the message from the child if there is one */
-		if(pipe_status != -1){
-			r = read(pipeFDs[0], &stat_msg, msg_size);
-			if (r > 0)
-				exitSignal = stat_msg;
-		}
-	}
+// 		pid_t exitpid;
+// 		exitpid = waitpid(pid, &status, WNOHANG);
+// 		/* read the message from the child if there is one */
+// 		if(pipe_status != -1){
+// 			r = read(pipeFDs[0], &stat_msg, msg_size);
+// 			if (r > 0)
+// 				exitSignal = stat_msg;
+// 		}
+// 	}
 
-	return new_PK(pid, exitSignal);
-}
+// 	return new_PK(pid, exitSignal);
+// }
 
 void sendErrorToParent(int pipe_status, int pipeFD, long int msg_size){
 	if(pipe_status != -1){
@@ -753,38 +753,38 @@ int mod (int x, int y)
    return themod;
 }
 
-void encrypt(char * instring, char * keystring, char * outstring, int dec){
-	const int ASCII_DIF = 65;
-	const int SPACE_VAL = 32;
-	const int TOP_VAL = 27;
-	/* vars for plaintext char, key char, intermediate char, encrypted char */
-	int pc, kc, ic, ec, 
-		i = 0;
+// void encrypt(char * instring, char * keystring, char * outstring, int dec){
+// 	const int ASCII_DIF = 65;
+// 	const int SPACE_VAL = 32;
+// 	const int TOP_VAL = 27;
+// 	/* vars for plaintext char, key char, intermediate char, encrypted char */
+// 	int pc, kc, ic, ec, 
+// 		i = 0;
 
-	/* until end of string */
-	while (instring[i] != '\0') {
-		/* convert characters A-Z \s into 0-26 for in and key */
-		pc = instring[i] - ASCII_DIF;
-		if(pc < 0) // must be space since it is 32 - 65
-			pc = TOP_VAL-1;
-		// printf("pc = %d\n", pc);
-		kc = keystring[i] - ASCII_DIF;
-		if(kc < 0)
-			kc = TOP_VAL-1;
-		/* get an intermediate value for clarity (encrypt or decrypt) */
-		ic = (!dec) ? pc + kc : pc - kc;
+// 	/* until end of string */
+// 	while (instring[i] != '\0') {
+// 		/* convert characters A-Z \s into 0-26 for in and key */
+// 		pc = instring[i] - ASCII_DIF;
+// 		if(pc < 0) // must be space since it is 32 - 65
+// 			pc = TOP_VAL-1;
+// 		// printf("pc = %d\n", pc);
+// 		kc = keystring[i] - ASCII_DIF;
+// 		if(kc < 0)
+// 			kc = TOP_VAL-1;
+// 		/* get an intermediate value for clarity (encrypt or decrypt) */
+// 		ic = (!dec) ? pc + kc : pc - kc;
 		
-		/* your encrypted int will be modulo of ic if less than top*/
-		if(!dec)
-			ec = (ic >= TOP_VAL) ? ic-TOP_VAL : mod(ic, TOP_VAL);
-		/* your decrypted int will be modulo of ic if greater than zero*/
-		else
-			ec = (ic < 0) ? ic+TOP_VAL : mod(ic, TOP_VAL);
+// 		/* your encrypted int will be modulo of ic if less than top*/
+// 		if(!dec)
+// 			ec = (ic >= TOP_VAL) ? ic-TOP_VAL : mod(ic, TOP_VAL);
+// 		/* your decrypted int will be modulo of ic if greater than zero*/
+// 		else
+// 			ec = (ic < 0) ? ic+TOP_VAL : mod(ic, TOP_VAL);
 
-		if(ec == TOP_VAL-1)
-			ec = SPACE_VAL - ASCII_DIF;
+// 		if(ec == TOP_VAL-1)
+// 			ec = SPACE_VAL - ASCII_DIF;
 
-		outstring[i] = ec + ASCII_DIF;
-		i += 1;
-	}
-}
+// 		outstring[i] = ec + ASCII_DIF;
+// 		i += 1;
+// 	}
+// }
