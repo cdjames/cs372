@@ -22,11 +22,11 @@ import socket
 import signal
 
 # global variables
-usage = "python ftpclient.py [-help] [<SERVER_HOST> <SERVER_PORT> <DATA_PORT> <COMMAND> [<FILENAME>]]\n" # how to use
-usage += "    Commands: -l for listing directory; -g for getting <FILENAME>" # how to use
-host = "127.0.0.1" # default IP to connect to 
-port = 48834 # default server port
-dataport = 48835 # default data port
+USAGE = "python ftpclient.py [-help] [<SERVER_HOST> <SERVER_PORT> <DATA_PORT> <COMMAND> [<FILENAME>]]\n" # how to use
+USAGE += "    Commands: -l for listing directory; -g for getting <FILENAME>" # how to use
+HOST = "127.0.0.1" # default IP to connect to 
+PORT = 48834 # default server port
+DATAPORT = 48835 # default data port
 out_q = Queue() # use the multiprocessing Queue (Fifo); for sending messages
 wait_q = DummyQueue.LifoQueue() # needed for Lifo
 in_q = Queue() # for closing gatherInput() process
@@ -38,7 +38,7 @@ PROC_EXIT = "owaridayotto" # special code to kill input process
 class FtpClient():
 	'''Class to implement connecting to, sending to, receiving from server, and also
 		performing the same functions as a server'''
-	def __init__(self, port=port, handle="Anonymous"):
+	def __init__(self, port=PORT, handle="Anonymous"):
 		self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.data_s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.conn = None
@@ -53,7 +53,7 @@ class FtpClient():
 		self.code = "namae:"
 
 	### Client functions ###
-	def connect(self, h=host):
+	def connect(self, h=HOST):
 	    '''Connect to socket as a client'''
 	    try:
 	    	self.s.settimeout(TO)
@@ -281,44 +281,69 @@ def mainCleanup():
 	p.join() # join the gatherInput thread
 	sys.exit(1)
 
+def printExit(code=1):
+	print USAGE
+	sys.exit(code)
 
 ########### Main logic ############
 
 if __name__ == '__main__':
+
+	# "python ftpclient.py [-help] [<SERVER_HOST> <SERVER_PORT> <DATA_PORT> <COMMAND> [<FILENAME>]]\n"
+
 	# copy the file handle for standard in; used with gatherInput() - # https://stackoverflow.com/questions/8976962/is-there-any-way-to-pass-stdin-as-an-argument-to-another-process-in-python#8981813
 	newstdin = os.fdopen(os.dup(sys.stdin.fileno())) 
 
 	# set default host and port
-	h = host
-	p = port
+	h = HOST
+	sp = PORT
+	dp = DATAPORT
+	cmd = ""
+	fname = ""
 	# get user-defined host and port
-	if len(sys.argv) >= 2:
-		if "-h" in sys.argv[1]: # print usage info
-			print usage
-			sys.exit(0)
+	if len(sys.argv) >= 5:
+		if "-h" in sys.argv[1].lower(): # print usage info
+			print USAGE
+			printExit(0)
 		else:
-			p = sys.argv[1] # get port
-		if len(sys.argv) >= 3:
-			h = sys.argv[2] # get host
+			h = sys.argv[1] # get host
+			sp = sys.argv[2] # get server port
+			dp = sys.argv[3] # get server port
+			cmd = sys.argv[4] # get server port
+			if cmd.lower() == "-g":
+				if len(sys.argv) == 5: 
+					print "Missing file name with option -g"
+					printExit()
+				elif len(sys.argv) == 6:
+					fname = sys.argv[5]
+				else:
+					print "Too many options"
+					printExit()
+			elif cmd.lower() == "-l":
+				if len(sys.argv) != 5:
+					print "Too many options"
+					printExit()
+			else:
+				printExit()
+	else:
+		printExit()
+
 	# start the FtpClient object
-	ch = FtpClient(port=p, handle=getUserName())
-	if not ch.connect(h): # try to become client
-		if not ch.startServer(): # if that fails, try to become server
-			print("...There was a problem becoming the server. Exiting")
-			sys.exit(1)
+	# ch = FtpClient(port=p, handle=getUserName())
+	# if not ch.connect(h): # try to become client
+	# 	print("...There was a problem connecting to the server. Check your Exiting")
+	# 	sys.exit(1)
 
 	# if you get here, you can start to gather input in a new process
-	p = Process(target=gatherInput, args=(newstdin,in_q)) # read input in new process with copy of standard in
-	p.start()
+	# p = Process(target=gatherInput, args=(newstdin,in_q)) # read input in new process with copy of standard in
+	# p.start()
 
 	# be ready to close the socket and end the other process
-	signal.signal(signal.SIGINT, ch.cleanup)  
+	# signal.signal(signal.SIGINT, ch.cleanup)  
 
 	# do sending and receiving 
-	if ch.is_client:
-		ch.clientLoop()
-	elif ch.is_server:
-		ch.serverLoop()
+	# if ch.is_client:
+	# 	ch.clientLoop()
 
 	# just in case, clean up if you get here
-	mainCleanup()
+	# mainCleanup()
