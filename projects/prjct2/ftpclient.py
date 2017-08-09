@@ -23,6 +23,7 @@ import signal
 from struct import *
 
 # global variables
+MAX_BUF = 70000
 USAGE = "python ftpclient.py [-help] [<SERVER_HOST> <SERVER_PORT> <DATA_PORT> <COMMAND> [<FILENAME>]]\n" # how to use
 USAGE += "    Commands: -l for listing directory; -g for getting <FILENAME>" # how to use
 HOST = "127.0.0.1" # default IP to connect to 
@@ -101,25 +102,37 @@ class FtpClient():
 		except socket.error, e:
 			self.printAndExit("couldn't send command to server")
 
-		# receive an integer
+		# receive an integer: help here: https://stackoverflow.com/questions/24685904/python-send-integer-value-over-socket#24686661
 		try:
-			code = unpack("!i", self.s.recv(4))[0] # returns 
+			code = unpack("!i", self.s.recv(4))[0] # returns (1,); unpacks bytes sent in network order
 			print "code="+str(code)
 		except socket.error, e: # socket is closed
 			self.printAndExit("couldn't receive from server")
 
 		if code == 1:
 			print str(self.dataport)
-			self.mysend(self.s, pack("!i", self.dataport) )
+			self.mysend(self.s, pack("!i", self.dataport) ) # send integer in network byte-order
 			# start up the server
-			# if (!startServer()):
+			if not self.startServer():
+				self.printAndExit("couldn't become server")
+			else:
+				try:
+					self.acceptNewClients()
+				except server.error, e:
+					self.printAndExit("couldn't initiate connection")
+				# got connection 
+				data = self.conn.recv(MAX_BUF)
+				print "Contents of server:"
+				print data
+				self.conn.close()
+				self.printAndExit(err=0)
 
 		self.s.close()
 
-	def printAndExit(self, msg=""):
+	def printAndExit(self, msg="", err=1):
 		print msg
 		self.s.close()
-		sys.exit(1)
+		sys.exit(err)
 
 	def clientLoop(self):
 		'''Loop until the user enters "\quit"; send and receive data '''
@@ -165,12 +178,14 @@ class FtpClient():
 		''' Try to become a server! '''
 		try:
 			self.data_s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-			self.data_s.bind((h, self.port))
+			self.data_s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # reuse the port if possible
+			self.data_s.bind((h, self.dataport))
 			self.data_s.listen(1)
 			self.is_server = True
 			print "...Chat server started"
 			return True
 		except socket.error as msg:
+			print msg
 			self.data_s.close()
 			self.data_s = None
 			return False
@@ -216,13 +231,12 @@ class FtpClient():
 		try:
 			if close:
 				self.conn.close()
-			print "...accepting new clients"
+			print "...initiating data connection"
 			self.conn, self.addr = self.data_s.accept()
 			# after connecting, send your handle
 			# self.sendHandle(self.conn)
 		except socket.error, e:
-			print "...socket closed, exiting"
-			sys.exit(1)
+			raise e
 
 	### Common Functions ###
 	def sendHandle(self, s):

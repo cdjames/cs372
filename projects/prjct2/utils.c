@@ -86,7 +86,9 @@ int sendMsg(char * text, int cnctFD){
 
 int recvAll(int socketFD, void * buf, int * amountToRecv) {
 	// figure out how much needs to be sent
+	#ifdef DEBUG
 	printf("in recvAll=%d\n", *amountToRecv);
+	#endif
 	int total = 0; // amount received
 	int amt;
 	int bytesToRecv = *amountToRecv;
@@ -94,7 +96,9 @@ int recvAll(int socketFD, void * buf, int * amountToRecv) {
 	
 	while(total < *amountToRecv){
 		amt = recv(socketFD, buf+total, bytesToRecv, 0);
+		#ifdef DEBUG
 		printf("amountToRecv=%d\n", *amountToRecv);
+		#endif
 		/* get out of loop on send error */
 		if(amt == -1 || amt == 0){
 			if(amt == -1)
@@ -103,8 +107,9 @@ int recvAll(int socketFD, void * buf, int * amountToRecv) {
 				returnThis = 1;
 			break;
 		}
-		printf("got here\n");
+		#ifdef DEBUG
 		printf("bytesToRecv=%d\n", bytesToRecv);
+		#endif
 		total += amt;
 		bytesToRecv -= amt;
 	}
@@ -113,7 +118,9 @@ int recvAll(int socketFD, void * buf, int * amountToRecv) {
 	*amountToRecv = total;
 	
 	/* return an error or success depending on result */
+	#ifdef DEBUG
 	printf("buffer=%d\n", ntohl(buf));
+	#endif
 	return returnThis;
 }
 
@@ -320,7 +327,9 @@ int makeDataConnection(int clientFD) {
 		/* send a request for the port number */
 	// printf("send %d bytes\n", amtToSend);
 	char code[] = "1";
+	#ifdef DEBUG
 	printf("send %d bytes\n", strlen(code));
+	#endif
 	// int sendFail = sendAll(clientFD, code, strlen(code)+1);
 	// int sendFail = send(clientFD, code, strlen(code), 0);
 	int n_request = htonl(request);
@@ -336,7 +345,9 @@ int makeDataConnection(int clientFD) {
 	}
 	long l_dataport = ntohl(dataport);
 	dataport = (int) l_dataport;
+	#ifdef DEBUG
 	printf("dataport=%d\n", dataport);
+	#endif
 	/* make a data connection */
 	int dataFD = makeConnection(dataport);
 	if(dataFD < 0) {
@@ -376,13 +387,14 @@ int readDirectory(char * path, char * buffer) {
 	struct dirent *dir_entry = NULL; // for storing directory entry
 	int first_run = 1;
 	int len = 0; // track how many bytes you have read; keep this under the max buffer length
-	clearString(buffer, strlen(buffer));
+	clearString(buffer, MAX_BUF_LEN);
 	int bef_errno = errno;
 	while( ( dir_entry = readdir(dirname) ) != NULL && len < MAX_BUF_LEN) {
-		if(strcmp(dir_entry->d_name, ".") != 0 && strcmp(dir_entry->d_name, ".") != 0) { // don't append . and ..
+		if(strcmp(dir_entry->d_name, ".") != 0 && strcmp(dir_entry->d_name, "..") != 0) { // don't append . and ..
 			/* append the string to the end of the buffer */
 			if(first_run) {
 				strcpy(buffer, dir_entry->d_name);
+				first_run = 0;
 			}
 			else {
 				strcat(buffer, dir_entry->d_name);
@@ -394,6 +406,7 @@ int readDirectory(char * path, char * buffer) {
 	if(dir_entry == NULL && bef_errno != errno) // there was a read error as errno has been changed
 		return 1;
 
+	buffer[strlen(buffer)-1] = '\0'; // trim the last new character
 	return 0;
 }
 
@@ -490,10 +503,15 @@ struct Pidkeeper sendFileInChild(int clientFD) {
 				close(clientFD);
 				return new_PK(pid, -1);
 			}
-
+			#ifdef DEBUG
+			printf("f_contents=%d\n", strlen(f_contents));
+			#endif
 			/* send the directory */
-			sendFail = sendAll(dataFD, f_contents, strlen(f_contents));
-
+			// sendFail = sendAll(dataFD, f_contents, strlen(f_contents));
+			sendFail = send(dataFD, f_contents, strlen(f_contents), 0);
+			#ifdef DEBUG
+			printf("sendFail=%d\n", sendFail);
+			#endif
 			/* close the connection */
 			close(dataFD);
 
